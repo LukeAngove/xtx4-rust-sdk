@@ -6,3 +6,4 @@ edition = "2021"
 
 [dependencies]
 xtx4_platform = { path = "../xtx4_platform", default-features = false }
+embedded-graphics = "0.8"

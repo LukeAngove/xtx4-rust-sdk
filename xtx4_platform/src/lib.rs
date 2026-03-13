@@ -1,6 +1,13 @@
 #![cfg_attr(not(feature = "desktop"), no_std)]
 
 pub use xtx4_platform_interface::{Buttons, Framebuffer, Platform};
+use embedded_graphics::{
+    draw_target::DrawTarget,
+    geometry::{OriginDimensions, Size},
+    pixelcolor::BinaryColor,
+    Pixel,
+};
+
 
 #[cfg(all(feature = "desktop", feature = "esp32"))]
 compile_error!("Features 'desktop' and 'esp32' are mutually exclusive");
@@ -95,6 +102,48 @@ impl InputState {
     pub fn held_ms(&self, btn: Button, now_ms: u32) -> u32 {
         let start = self.press_start_ms[btn as usize];
         if start == 0 { 0 } else { now_ms - start }
+    }
+}
+
+pub struct Canvas<'a> {
+    buf: &'a mut [u8],
+    width: u16,
+    height: u16,
+}
+
+impl<'a> Canvas<'a> {
+    pub fn new(buf: &'a mut [u8], width: u16, height: u16) -> Self {
+        Self { buf, width, height }
+    }
+}
+
+impl DrawTarget for Canvas<'_> {
+    type Color = BinaryColor;
+    type Error = core::convert::Infallible;
+
+    fn draw_iter<I>(&mut self, pixels: I) -> Result<(), Self::Error>
+    where I: IntoIterator<Item = Pixel<BinaryColor>> {
+        for Pixel(point, color) in pixels {
+            let x = point.x as usize;
+            let y = point.y as usize;
+            if x < self.width as usize && y < self.height as usize {
+                let px = y * self.width as usize + x;
+                let byte = px / 8;
+                let bit = px % 8;
+                if color.is_on() {
+                    self.buf[byte] |= 0x80 >> bit;
+                } else {
+                    self.buf[byte] &= !(0x80 >> bit);
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+impl OriginDimensions for Canvas<'_> {
+    fn size(&self) -> Size {
+        Size::new(self.width as u32, self.height as u32)
     }
 }
 

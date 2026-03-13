@@ -12,6 +12,8 @@
 use minifb::{Key, Window, WindowOptions};
 use xtx4_platform_interface::{Buttons, Framebuffer, Platform};
 
+// Use width and height as the viewer sees them.
+// This is different to the hardware, which is 90 degrees off!
 const HEIGHT : usize = 800;
 const WIDTH : usize = 480;
 const BUFF_SIZE : usize = HEIGHT * WIDTH;
@@ -26,26 +28,17 @@ const DARK_GHOST : u8 = 60;
 const LIGHT_GHOST : u8 = 190;
 
 /// Unpack a 1bpp landscape framebuffer into the portrait pixel_buf,
-/// rotating 90° clockwise. Optionally invert all pixels.
-fn unpack_rotated(pixels: &mut [u32], fb: &Framebuffer, invert: bool) {
+fn unpack(pixels: &mut [u32], fb: &Framebuffer, invert: bool) {
     for (i, byte) in fb.iter().enumerate() {
         for bit in 0..8 {
             let px = i * 8 + bit;
-            let lx = px % HEIGHT; // landscape x
-            let ly = px / HEIGHT; // landscape y
-
-            // Rotate 90° clockwise into portrait window
-            let sx = (WIDTH - 1) - ly;
-            let sy = lx;
-            let screen_idx = sy * WIDTH + sx;
-
             let is_white = (byte & (0x80 >> bit)) != 0;
             let is_white = if invert { !is_white } else { is_white };
-            pixels[screen_idx] =
-                if is_white { WHITE } else { BLACK };
+            pixels[px] = if is_white { WHITE } else { BLACK };
         }
     }
 }
+
 fn u8_to_pixel(v: u8) -> u32 {
     // Interpolate between BLACK and WHITE
     let t = v as f32 / 255.0;
@@ -87,12 +80,7 @@ impl DesktopPlatform {
     fn render_ghost(&mut self) {
         let mut pixel_buf: Vec<u32> = vec![0; BUFF_SIZE];
         for px in 0..BUFF_SIZE {
-            let lx = px % HEIGHT;
-            let ly = px / HEIGHT;
-            let sx = (WIDTH - 1) - ly;
-            let sy = lx;
-            let screen_idx = sy * WIDTH + sx;
-            pixel_buf[screen_idx] = u8_to_pixel(self.ghost_buf[px]);
+            pixel_buf[px] = u8_to_pixel(self.ghost_buf[px]);
         }
         self.window
             .update_with_buffer(&pixel_buf, WIDTH, HEIGHT)
@@ -102,14 +90,12 @@ impl DesktopPlatform {
     fn apply_ghost(&mut self, fb: &[u8], x: u16, y: u16, w: u16, h: u16) {
         for row in 0..h as usize {
             for col in 0..w as usize {
-                // Source: read from small fb at (col, row)
                 let src_px = row * w as usize + col;
                 let src_byte = src_px / 8;
                 let src_bit = src_px % 8;
                 let new_white = (fb[src_byte] & (0x80 >> src_bit)) != 0;
 
-                // Destination: write to ghost_buf at display position (x+col, y+row)
-                let dst_px = (y as usize + row) * HEIGHT + (x as usize + col);
+                let dst_px = (y as usize + row) * WIDTH + (x as usize + col);
                 let prev_white = fb_bit(&self.prev_buf, dst_px);
 
                 self.ghost_buf[dst_px] = if prev_white == new_white {
@@ -117,9 +103,9 @@ impl DesktopPlatform {
                     let current = self.ghost_buf[dst_px];
                     (current as i16 + (target as i16 - current as i16) / 4) as u8
                 } else if prev_white && !new_white {
-                    DARK_GHOST  // white -> black: dark grey ghost
+                    DARK_GHOST
                 } else {
-                    LIGHT_GHOST // black -> white: light grey ghost
+                    LIGHT_GHOST
                 };
             }
         }
@@ -150,7 +136,7 @@ impl Platform for DesktopPlatform {
 
         for _ in 0..FLASH_CYCLES {
             // Inverted previous image (ghosting)
-            unpack_rotated(&mut pixel_buf, &self.prev_buf, true);
+            unpack(&mut pixel_buf, &self.prev_buf, true);
             self.sleep_and_render(FLASH_PHASE_MS, &pixel_buf);
 
             // Pure black
@@ -160,7 +146,7 @@ impl Platform for DesktopPlatform {
             self.reset_ghost(fb);
 
             // Inverted new image
-            unpack_rotated(&mut pixel_buf, fb, true);
+            unpack(&mut pixel_buf, fb, true);
             self.sleep_and_render(FLASH_PHASE_MS, &pixel_buf);
 
             // Pure white
@@ -168,17 +154,15 @@ impl Platform for DesktopPlatform {
             self.sleep_and_render(FLASH_PHASE_MS, &pixel_buf);
         }
 
-        unpack_rotated(&mut pixel_buf, fb, false);
+        unpack(&mut pixel_buf, fb, false);
         self.sleep_and_render(FLASH_PHASE_MS, &pixel_buf);
 
         self.prev_buf = *fb;
     }
 
     fn display_flush_partial(&mut self, fb: &[u8], x: u16, y: u16, w: u16, h: u16) {
-        // Apply ghosting transitions
         self.apply_ghost(fb, x, y, w, h);
 
-        // Only invert pixels that are actually changing state
         for row in 0..h as usize {
             for col in 0..w as usize {
                 let src_px = row * w as usize + col;
@@ -186,7 +170,7 @@ impl Platform for DesktopPlatform {
                 let src_bit = src_px % 8;
                 let new_white = (fb[src_byte] & (0x80 >> src_bit)) != 0;
 
-                let dst_px = (y as usize + row) * HEIGHT + (x as usize + col);
+                let dst_px = (y as usize + row) * WIDTH + (x as usize + col);
                 let prev_white = fb_bit(&self.prev_buf, dst_px);
 
                 if prev_white != new_white {
@@ -194,16 +178,13 @@ impl Platform for DesktopPlatform {
                 }
             }
         }
-
         self.render_ghost();
         std::thread::sleep(std::time::Duration::from_millis(50));
 
-        // Restore and settle
         self.apply_ghost(fb, x, y, w, h);
         self.render_ghost();
         std::thread::sleep(std::time::Duration::from_millis(100));
 
-        // Update prev_buf for the changed region only
         for row in 0..h as usize {
             for col in 0..w as usize {
                 let src_px = row * w as usize + col;
@@ -211,7 +192,7 @@ impl Platform for DesktopPlatform {
                 let src_bit = src_px % 8;
                 let new_white = (fb[src_byte] & (0x80 >> src_bit)) != 0;
 
-                let dst_px = (y as usize + row) * HEIGHT + (x as usize + col);
+                let dst_px = (y as usize + row) * WIDTH + (x as usize + col);
                 let dst_byte = dst_px / 8;
                 let dst_bit = dst_px % 8;
                 if new_white {

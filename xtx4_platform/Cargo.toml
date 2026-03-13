@@ -11,3 +11,4 @@ esp32 = ["dep:xtx4_esp32"]
 xtx4_platform_interface = { path = "../xtx4_platform_interface" }
 xtx4_desktop = { path = "../xtx4_desktop", optional = true }
 xtx4_esp32 = { path = "../xtx4_esp32", optional = true }
+embedded-graphics = "0.8"

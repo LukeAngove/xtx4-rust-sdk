@@ -1,5 +1,11 @@
 #![no_std]
-use xtx4_platform::{Platform, Button, InputState, init};
+use xtx4_platform::{Platform, Button, InputState, Canvas, init};
+use embedded_graphics::{
+    prelude::*,
+    mono_font::{ascii::FONT_6X10, MonoTextStyle},
+    pixelcolor::BinaryColor,
+    text::Text,
+};
 
 fn main() {
     let mut platform = init();
@@ -9,9 +15,21 @@ fn main() {
 fn app_main(platform: &mut impl Platform) {
     let mut input = InputState::new();
 
+    let style = MonoTextStyle::new(&FONT_6X10, BinaryColor::Off);
+
     let mut fb = [0u8; 800 * 480 / 8];
     fb.fill(0xFF); // start with white screen
     platform.display_flush(&fb);
+
+    let mut buf = [0xffu8; (480 * 800 + 7) / 8];
+    let mut canvas = Canvas::new(&mut buf, 480, 800);
+    Text::new("Hello X4!", Point::new(10, 20), style).draw(&mut canvas).expect("Invalid draw!");
+    platform.display_flush(&buf);
+
+    let mut buf = [0xffu8; (100 * 100 + 7) / 8];
+    let mut canvas = Canvas::new(&mut buf, 100, 100);
+    Text::new("Hi!", Point::new(0, 10), style).draw(&mut canvas).expect("Invalid draw!");
+    platform.display_flush_partial(&buf, 50, 50, 100, 100);
 
     loop {
         input.update(platform);
@@ -76,7 +94,7 @@ fn app_main(platform: &mut impl Platform) {
 fn draw_rect(fb: &mut [u8], x: u16, y: u16, w: u16, h: u16, white: bool) {
     for row in 0..h {
         for col in 0..w {
-            let px = (y + row) as usize * 800 + (x + col) as usize;
+            let px = (x + row) as usize * 480 + (y + col) as usize;
             let byte = px / 8;
             let bit = px % 8;
             if white {
