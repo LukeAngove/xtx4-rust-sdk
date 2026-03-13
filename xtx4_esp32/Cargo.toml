@@ -1,0 +1,8 @@
+[package]
+name = "xtx4_esp32"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+xtx4_platform_interface = { path = "../xtx4_platform_interface" }
+esp-hal = { version = "0.22", features = ["esp32c3"] }

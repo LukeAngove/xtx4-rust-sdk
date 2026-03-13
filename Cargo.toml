@@ -1,0 +1,10 @@
+[workspace]
+members = [
+    "xtx4_platform_interface",
+    "xtx4_platform",
+    "xtx4_sample",
+]
+# Exclude from platform specific targets from build; only build when depended on.
+# Stops build errors on incompatible platforms
+exclude = ["xtx4_desktop", "xtx4_esp32"]
+resolver = "2"

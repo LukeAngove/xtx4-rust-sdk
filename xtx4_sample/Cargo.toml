@@ -1,0 +1,8 @@
+# xtx4_sample/Cargo.toml
+[package]
+name = "xtx4_sample"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+xtx4_platform = { path = "../xtx4_platform", default-features = false }

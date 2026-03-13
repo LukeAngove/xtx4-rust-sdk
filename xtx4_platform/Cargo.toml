@@ -1,0 +1,13 @@
+[package]
+name = "xtx4_platform"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+desktop = ["dep:xtx4_desktop"]
+esp32 = ["dep:xtx4_esp32"]
+
+[dependencies]
+xtx4_platform_interface = { path = "../xtx4_platform_interface" }
+xtx4_desktop = { path = "../xtx4_desktop", optional = true }
+xtx4_esp32 = { path = "../xtx4_esp32", optional = true }
