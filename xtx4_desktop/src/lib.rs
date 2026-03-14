@@ -237,4 +237,8 @@ impl Platform for DesktopPlatform {
     fn power_off(&mut self) {
         std::process::exit(0);
     }
+
+    fn log(&mut self, msg: &str) {
+        println!("{}", msg);
+    }
 }

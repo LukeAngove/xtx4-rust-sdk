@@ -1,11 +1,12 @@
 #![no_std]
 
-const HEIGHT : usize = 800;
-const WIDTH : usize = 480;
+pub const FRAME_HEIGHT : usize = 800;
+pub const FRAME_WIDTH : usize = 480;
+pub const FRAME_BYTE_SIZE : usize = FRAME_WIDTH*FRAME_HEIGHT/8;
 
 /// 1 bit per pixel, row-major.
 /// Bit 7 of byte 0 = pixel (0,0). 1 = white, 0 = black.
-pub type Framebuffer = [u8; HEIGHT * WIDTH / 8];
+pub type Framebuffer = [u8; FRAME_BYTE_SIZE];
 
 bitflags::bitflags! {
     #[derive(Clone, Copy)]
@@ -38,6 +39,9 @@ pub trait Platform {
 
     /// Turn off (or close) the device (or app)
     fn power_off(&mut self);
+
+    /// Log to serial console (or stdout)
+    fn log(&mut self, msg: &str);
 }
 
 
