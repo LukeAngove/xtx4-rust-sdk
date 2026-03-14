@@ -55,6 +55,35 @@ impl<'a> Canvas<'a> {
         (top, bottom)
     }
 
+    pub fn split_horz<'b>(&'b self, left_ratio: u32, right_ratio: u32) -> (Canvas<'b>, Canvas<'b>) where 'a: 'b {
+        let full_rect = self.view;
+        let full_width = full_rect.size.width;
+        let total = left_ratio + right_ratio;
+        let excess = full_width % total;
+        let pixel_segments = full_width / total;
+
+        let mut left_width = pixel_segments * left_ratio;
+        let mut right_width = pixel_segments * right_ratio;
+
+        if left_ratio > right_ratio {
+            left_width += excess;
+        } else {
+            right_width += excess;
+        }
+
+        // TODO assert left_width + right_width == full_width
+
+        let left_rect = Rectangle::new(full_rect.top_left, Size::new(left_width, full_rect.size.height));
+        let right_rect = Rectangle::new(Point::new(full_rect.top_left.x + left_width as i32, full_rect.top_left.y), Size::new(right_width, full_rect.size.height));
+
+        let left = Canvas { buf: &self.buf, view: left_rect, stride: self.stride };
+        let right =  Canvas { buf: &self.buf, view: right_rect, stride: self.stride };
+
+        (left, right)
+    }
+
+
+
     pub fn fill(&self, value: u8) {
         let cells = self.buf.as_slice_of_cells();
         for c in cells {

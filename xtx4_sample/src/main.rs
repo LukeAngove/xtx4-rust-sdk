@@ -40,9 +40,19 @@ fn main() {
 
         if input.was_pressed(Button::LeftOuter) {
             // Full refresh - draw black rectangle top left
-            let mut full_canvas = platform.canvas();
-            let rect = Rectangle::new(Point::new(0,0), Size::new(100,100)).into_styled(line_style);
-            rect.draw(&mut full_canvas);
+            let full_canvas = platform.canvas();
+
+            let split_v = full_canvas.split_vert(1, 3);
+            let mut top = split_v.0;
+
+            let bottom = split_v.1.split_horz(1,1);
+            let mut bl = bottom.0;
+            let mut br = bottom.1;
+
+            let rect = Rectangle::new(Point::new(40,40), Size::new(100,100)).into_styled(line_style);
+            rect.draw(&mut top);
+            rect.draw(&mut bl);
+            rect.draw(&mut br);
             platform.display_flush();
         }
 
