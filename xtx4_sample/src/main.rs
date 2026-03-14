@@ -17,19 +17,19 @@ fn main() {
         .fill_color(STYLE_BLACK)
         .build();
     {
-        let mut full_canvas = platform.canvas();
+        let full_canvas = platform.canvas();
 
         full_canvas.fill(0xFF); // start with white screen
         platform.display_flush();
     }
 
-    let mut buf = [0xffu8; (480 * 800 + 7) / 8];
-    let mut canvas = Canvas::new(&mut buf, Size::new(480, 800));
+    let buf = bit_buf!(0xffu8; (480, 800));
+    let mut canvas = Canvas::new(&buf, Size::new(480, 800));
     Text::new("Hello X4!", Point::new(10, 20), text_style).draw(&mut canvas).expect("Invalid draw!");
     platform.display_full_flush(&canvas);
 
-    let mut buf = [0xffu8; (100 * 100 + 7) / 8];
-    let mut canvas = Canvas::new(&mut buf, Size::new(100,100));
+    let buf = bit_buf!(0xffu8; (100, 100));
+    let mut canvas = Canvas::new(&buf, Size::new(100,100));
     Text::new("Hi!", Point::new(0, 10), text_style).draw(&mut canvas).expect("Invalid draw!");
     platform.display_partial_at(&canvas, Point::new(50,50));
 
@@ -47,7 +47,7 @@ fn main() {
         }
 
         if input.was_pressed(Button::LeftInner) {
-            let mut full_canvas = platform.canvas();
+            let full_canvas = platform.canvas();
             // Full refresh - clear to white
             full_canvas.fill(0xFF);
             platform.display_flush();

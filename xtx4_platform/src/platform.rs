@@ -1,7 +1,7 @@
 use crate::canvas::Canvas;
 use crate::input::{InputState, InputStateManager};
 use embedded_graphics::prelude::*;
-use xtx4_platform_interface::{Platform, Framebuffer, FRAME_BYTE_SIZE, FRAME_WIDTH, FRAME_HEIGHT};
+use xtx4_platform_interface::{Platform, Framebuffer, Buffer, FRAME_WIDTH, FRAME_HEIGHT, bit_buf};
 
 #[cfg(feature = "desktop")]
 use xtx4_desktop::DesktopPlatform;
@@ -30,7 +30,7 @@ impl XtX4 {
 
         let mut input_state_manager = InputStateManager::new();
         _ = input_state_manager.update(&mut platform);
-        let framebuffer = [0u8; FRAME_BYTE_SIZE];
+        let framebuffer = bit_buf!(0u8; (FRAME_WIDTH, FRAME_HEIGHT));
         Self{platform, framebuffer, input_state_manager}
     }
 
@@ -49,9 +49,11 @@ impl XtX4 {
     }
 
     /// Push a full framebuffer to the display (or emulated window).
+    /// Canvas is moved over the old canvas.
     pub fn display_full_flush(&mut self, canvas: &Canvas) {
         // TODO Should panic if canvas isn't same size as screen.
-        self.platform.display_flush(canvas.buf().try_into().unwrap());
+        let arr: &Framebuffer = unsafe { &*(canvas.buf() as *const Buffer as *const Framebuffer) };
+        self.platform.display_flush(arr);
     }
 
     /// Push a paritial framebuffer to the display (or emulated window).

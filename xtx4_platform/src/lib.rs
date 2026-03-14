@@ -7,6 +7,7 @@ mod platform;
 pub use crate::input::{InputState, Button};
 pub use crate::platform::XtX4;
 pub use crate::canvas::{Canvas, STYLE_BLACK, STYLE_WHITE};
+pub use xtx4_platform_interface::{Buffer, Framebuffer, bit_buf};
 
 #[cfg(all(feature = "desktop", feature = "esp32"))]
 compile_error!("Features 'desktop' and 'esp32' are mutually exclusive");

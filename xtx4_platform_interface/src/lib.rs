@@ -1,12 +1,24 @@
 #![no_std]
 
+use core::cell::Cell;
+
 pub const FRAME_HEIGHT : usize = 800;
 pub const FRAME_WIDTH : usize = 480;
 pub const FRAME_BYTE_SIZE : usize = FRAME_WIDTH*FRAME_HEIGHT/8;
 
+#[macro_export]
+macro_rules! bit_buf {
+    ($fill:expr; ($width:expr, $height:expr)) => {
+        // Add '7' so we always add an extra byte, unless
+        // it lines up exactly to a byte boundary.
+        ::core::cell::Cell::new([$fill as u8; ($width * $height + 7) / 8])
+    };
+}
+
 /// 1 bit per pixel, row-major.
 /// Bit 7 of byte 0 = pixel (0,0). 1 = white, 0 = black.
-pub type Framebuffer = [u8; FRAME_BYTE_SIZE];
+pub type Framebuffer = Cell<[u8; FRAME_BYTE_SIZE]>;
+pub type Buffer = Cell<[u8]>;
 
 bitflags::bitflags! {
     #[derive(Clone, Copy)]
@@ -23,10 +35,11 @@ bitflags::bitflags! {
 
 pub trait Platform {
     /// Push a full framebuffer to the display (or emulated window).
+    /// Framebuffer is moved.
     fn display_flush(&mut self, fb: &Framebuffer);
 
     /// Push a paritial framebuffer to the display (or emulated window).
-    fn display_flush_partial(&mut self, fb: &[u8], x: u16, y: u16, w: u16, h: u16);
+    fn display_flush_partial(&mut self, fb: &Buffer, x: u16, y: u16, w: u16, h: u16);
 
     /// Read instantaneous button state.
     fn button_state(&mut self) -> Buttons;

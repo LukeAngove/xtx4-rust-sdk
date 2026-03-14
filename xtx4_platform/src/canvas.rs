@@ -7,42 +7,62 @@ use embedded_graphics::{
     Pixel,
 };
 
-#[macro_export]
-macro_rules! bit_buf {
-    ($fill:expr; ($width:expr, $height:expr)) => {
-        // Add '7' so we always add an extra byte, unless
-        // it lines up exactly to a byte boundary.
-        [$fill as u8; ($width * $height + 7) / 8]
-    };
-}
+use xtx4_platform_interface::Buffer;
 
 pub const STYLE_BLACK : BinaryColor = BinaryColor::Off;
 pub const STYLE_WHITE : BinaryColor = BinaryColor::On;
 
+
 pub struct Canvas<'a> {
-    buf: &'a mut [u8],
+    buf: &'a Buffer,
     view: Rectangle,
     stride: u32,
 }
 
 impl<'a> Canvas<'a> {
-    pub fn new(buf: &'a mut [u8], size: Size) -> Self {
+    pub fn new(buf: &'a Buffer, size: Size) -> Self {
         Self { buf, view: Rectangle::new(Point::new(0, 0), size), stride: size.width }
     }
 
-    pub fn view<'b>(&'b mut self, view: Rectangle) -> Canvas<'b> where 'a: 'b {
+    pub fn view<'b>(&'b self, view: Rectangle) -> Canvas<'b> where 'a: 'b {
         Canvas { buf: self.buf, view, stride: self.stride }
     }
 
-    pub fn fill(&mut self, value: u8) {
-        self.buf.fill(value);
+    pub fn split_vert<'b>(&'b self, top_ratio: u32, bottom_ratio: u32) -> (Canvas<'b>, Canvas<'b>) where 'a: 'b {
+        let full_rect = self.view;
+        let full_height = full_rect.size.height;
+        let total = top_ratio + bottom_ratio;
+        let excess = full_height % total;
+        let pixel_segments = full_height / total;
+
+        let mut top_height = pixel_segments * top_ratio;
+        let mut bottom_height = pixel_segments * bottom_ratio;
+
+        if top_ratio > bottom_ratio {
+            top_height += excess;
+        } else {
+            bottom_height += excess;
+        }
+
+        // TODO assert top_height + bottom_height == full_height
+
+        let top_rect = Rectangle::new(full_rect.top_left, Size::new(full_rect.size.width, top_height));
+        let bottom_rect = Rectangle::new(Point::new(full_rect.top_left.x, full_rect.top_left.y + top_height as i32), Size::new(full_rect.size.width, bottom_height));
+
+        let top = Canvas { buf: &self.buf, view: top_rect, stride: self.stride };
+        let bottom =  Canvas { buf: &self.buf, view: bottom_rect, stride: self.stride };
+
+        (top, bottom)
     }
 
-    pub fn buf(&self) -> &[u8] {
-        self.buf
+    pub fn fill(&self, value: u8) {
+        let cells = self.buf.as_slice_of_cells();
+        for c in cells {
+            c.set(value);
+        }
     }
 
-    pub fn buf_mut(&mut self) -> &mut [u8] {
+    pub fn buf(&self) -> &Buffer {
         self.buf
     }
 
@@ -66,6 +86,7 @@ impl DrawTarget for Canvas<'_> {
     fn draw_iter<I>(&mut self, pixels: I) -> Result<(), Self::Error>
     where I: IntoIterator<Item = Pixel<BinaryColor>> {
         for Pixel(point, color) in pixels {
+            let cells = self.buf.as_slice_of_cells();
             let x = point.x as usize;
             let y = point.y as usize;
             if x < self.size().width as usize && y < self.size().height as usize {
@@ -73,9 +94,9 @@ impl DrawTarget for Canvas<'_> {
                 let byte = px / 8;
                 let bit = px % 8;
                 if color.is_on() {
-                    self.buf[byte] |= 0x80 >> bit;
+                    cells[byte].set(cells[byte].get() | (0x80 >> bit) as u8);
                 } else {
-                    self.buf[byte] &= !(0x80 >> bit);
+                    cells[byte].set(cells[byte].get() & !(0x80 >> bit) as u8);
                 }
             }
         }
