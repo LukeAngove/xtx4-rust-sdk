@@ -12,7 +12,6 @@ use xtx4_platform_interface::Buffer;
 pub const STYLE_BLACK : BinaryColor = BinaryColor::Off;
 pub const STYLE_WHITE : BinaryColor = BinaryColor::On;
 
-
 pub struct Canvas<'a> {
     buf: &'a Buffer,
     view: Rectangle,
@@ -28,61 +27,17 @@ impl<'a> Canvas<'a> {
         Canvas { buf: self.buf, view, stride: self.stride }
     }
 
-    pub fn split_vert<'b>(&'b self, top_ratio: u32, bottom_ratio: u32) -> (Canvas<'b>, Canvas<'b>) where 'a: 'b {
-        let full_rect = self.view;
-        let full_height = full_rect.size.height;
-        let total = top_ratio + bottom_ratio;
-        let excess = full_height % total;
-        let pixel_segments = full_height / total;
-
-        let mut top_height = pixel_segments * top_ratio;
-        let mut bottom_height = pixel_segments * bottom_ratio;
-
-        if top_ratio > bottom_ratio {
-            top_height += excess;
-        } else {
-            bottom_height += excess;
-        }
-
-        // TODO assert top_height + bottom_height == full_height
-
-        let top_rect = Rectangle::new(full_rect.top_left, Size::new(full_rect.size.width, top_height));
-        let bottom_rect = Rectangle::new(Point::new(full_rect.top_left.x, full_rect.top_left.y + top_height as i32), Size::new(full_rect.size.width, bottom_height));
-
-        let top = Canvas { buf: &self.buf, view: top_rect, stride: self.stride };
-        let bottom =  Canvas { buf: &self.buf, view: bottom_rect, stride: self.stride };
-
-        (top, bottom)
+    pub fn views<'b, const N: usize>(&'b self, views: &[Rectangle; N]) -> [Canvas<'b>; N] where 'a: 'b {
+        core::array::from_fn(|i| {
+            self.view(views[i])
+        })
     }
 
-    pub fn split_horz<'b>(&'b self, left_ratio: u32, right_ratio: u32) -> (Canvas<'b>, Canvas<'b>) where 'a: 'b {
-        let full_rect = self.view;
-        let full_width = full_rect.size.width;
-        let total = left_ratio + right_ratio;
-        let excess = full_width % total;
-        let pixel_segments = full_width / total;
-
-        let mut left_width = pixel_segments * left_ratio;
-        let mut right_width = pixel_segments * right_ratio;
-
-        if left_ratio > right_ratio {
-            left_width += excess;
-        } else {
-            right_width += excess;
-        }
-
-        // TODO assert left_width + right_width == full_width
-
-        let left_rect = Rectangle::new(full_rect.top_left, Size::new(left_width, full_rect.size.height));
-        let right_rect = Rectangle::new(Point::new(full_rect.top_left.x + left_width as i32, full_rect.top_left.y), Size::new(right_width, full_rect.size.height));
-
-        let left = Canvas { buf: &self.buf, view: left_rect, stride: self.stride };
-        let right =  Canvas { buf: &self.buf, view: right_rect, stride: self.stride };
-
-        (left, right)
+    pub fn views_2d<'b, const ROWS: usize, const COLS: usize>(&'b self, views: &[[Rectangle; COLS]; ROWS]) -> [[Canvas<'b>; COLS]; ROWS] where 'a: 'b {
+        core::array::from_fn(|i| {
+            self.views(&views[i])
+        })
     }
-
-
 
     pub fn fill(&self, value: u8) {
         let cells = self.buf.as_slice_of_cells();
@@ -138,4 +93,5 @@ impl OriginDimensions for Canvas<'_> {
         self.view.size
     }
 }
+
 

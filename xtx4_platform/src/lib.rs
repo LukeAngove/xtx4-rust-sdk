@@ -1,6 +1,8 @@
 #![cfg_attr(not(feature = "desktop"), no_std)]
 
 mod canvas;
+mod canvas_split;
+mod rect_split;
 mod input;
 mod platform;
 
