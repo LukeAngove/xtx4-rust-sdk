@@ -8,6 +8,7 @@
 //   Left   -> Arrow Left
 //   Right  -> Arrow Right
 //   Select -> Enter
+//
 
 use minifb::{Key, Window, WindowOptions};
 use xtx4_platform_interface::{Buttons, Framebuffer, Buffer, Platform, bit_buf};

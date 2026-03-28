@@ -4,6 +4,8 @@ use core::cell::Cell;
 
 pub const FRAME_HEIGHT : usize = 800;
 pub const FRAME_WIDTH : usize = 480;
+//pub const FRAME_HEIGHT : usize = 480;
+//pub const FRAME_WIDTH : usize = 800;
 pub const FRAME_BYTE_SIZE : usize = FRAME_WIDTH*FRAME_HEIGHT/8;
 
 #[macro_export]

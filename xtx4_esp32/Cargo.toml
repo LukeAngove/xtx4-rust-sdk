@@ -6,3 +6,6 @@ edition = "2021"
 [dependencies]
 xtx4_platform_interface = { path = "../xtx4_platform_interface" }
 esp-hal = { version = "0.22", features = ["esp32c3"] }
+esp-println = { version = "0.12", features = ["esp32c3"] }
+embassy-embedded-hal = "0.2"
+esp-backtrace = { version = "0.14", features = ["esp32c3", "panic-handler", "println"] }
