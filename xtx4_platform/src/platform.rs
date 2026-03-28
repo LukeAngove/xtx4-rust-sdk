@@ -1,7 +1,7 @@
 use crate::canvas::Canvas;
 use crate::input::{InputState, InputStateManager};
 use embedded_graphics::prelude::*;
-use xtx4_platform_interface::{Platform, Framebuffer, Buffer, FRAME_WIDTH, FRAME_HEIGHT, bit_buf};
+use xtx4_platform_interface::{bit_buf, Buffer, Framebuffer, Platform, FRAME_HEIGHT, FRAME_WIDTH};
 
 #[cfg(feature = "desktop")]
 use xtx4_desktop::DesktopPlatform;
@@ -31,15 +31,22 @@ impl XtX4 {
         let mut input_state_manager = InputStateManager::new();
         _ = input_state_manager.update(&mut platform);
         let framebuffer = bit_buf!(0u8; (FRAME_WIDTH, FRAME_HEIGHT));
-        Self{platform, framebuffer, input_state_manager}
+        Self {
+            platform,
+            framebuffer,
+            input_state_manager,
+        }
     }
 
     pub fn update_input(&mut self) -> InputState {
         self.input_state_manager.update(&mut self.platform)
     }
-     
+
     pub fn canvas<'a>(&'a mut self) -> Canvas<'a> {
-        let canvas = Canvas::new(&mut self.framebuffer, Size::new(FRAME_WIDTH as u32, FRAME_HEIGHT as u32));
+        let canvas = Canvas::new(
+            &mut self.framebuffer,
+            Size::new(FRAME_WIDTH as u32, FRAME_HEIGHT as u32),
+        );
         canvas
     }
 
@@ -59,14 +66,26 @@ impl XtX4 {
     /// Push a paritial framebuffer to the display (or emulated window).
     pub fn display_partial_at(&mut self, canvas: &Canvas, top_left: Point) {
         let size = canvas.size();
-        self.platform.display_flush_partial(canvas.buf(), top_left.x as u16, top_left.y as u16, size.width as u16, size.height as u16);
+        self.platform.display_flush_partial(
+            canvas.buf(),
+            top_left.x as u16,
+            top_left.y as u16,
+            size.width as u16,
+            size.height as u16,
+        );
     }
 
     /// Push a paritial framebuffer to the display (or emulated window).
     pub fn display_partial_clone(&mut self, canvas: &Canvas) {
         let start = canvas.start();
         let size = canvas.size();
-        self.platform.display_flush_partial(canvas.buf(), start.x as u16, start.y as u16, size.width as u16, size.height as u16);
+        self.platform.display_flush_partial(
+            canvas.buf(),
+            start.x as u16,
+            start.y as u16,
+            size.width as u16,
+            size.height as u16,
+        );
     }
 
     /// Get the current time in milliseconds
@@ -88,4 +107,3 @@ impl XtX4 {
         self.platform.log(msg);
     }
 }
-

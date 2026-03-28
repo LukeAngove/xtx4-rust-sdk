@@ -1,13 +1,22 @@
 use esp_hal::{
     prelude::*,
-    peripherals,
     spi,
-    spi::master::Spi,
+    spi::AnySpi,
+    spi::master::{Spi},
     spi::SpiMode,
-    gpio::{Level, Output, AnyPin},
+    gpio::{Level, Pull, Input, Output, AnyPin},
 };
 use embassy_embedded_hal::SetConfig;
+use esp_println::println;
 use xtx4_platform_interface::{Buffer};
+use bitflags::bitflags;
+
+use core::cell::Cell;
+
+use crate::sleep::sleep_ms;
+use crate::rectangle::Rectangle;
+
+const CTRL1_BYPASS_RED: u8 = 0x40;
 
 pub enum SSD1677Command {
     DriverOutputControl = 0x01,
@@ -45,18 +54,42 @@ pub enum Color {
     BlackWhite,
 }
 
+pub enum Range {
+    X,
+    Y,
+}
+
+bitflags! {
+    #[derive(Clone, Copy)]
+    pub struct DriverOutputControlMode: u8 {
+        const TB = 1 << 0; // Always 0
+        const SM = 1 << 1; // Scan order, 0 left and right interlaced, 1 no splitting.
+        const GD  = 1 << 2; // Set starting line, see table in manual.
+    }
+}
+
 pub struct SSD1677Builder {
-    pub spi: peripherals::SPI2, 
+    pub spi: AnySpi, 
     pub sck: AnyPin,
     pub mosi: AnyPin,
     pub cs: AnyPin,
     pub dc: AnyPin,
+    pub rst: AnyPin,
+    pub busy: AnyPin,
 }
 
 pub struct SSD1677 {
     spi:          Spi<'static, esp_hal::Blocking>,
     cs:           Output<'static>,
     dc:           Output<'static>,
+    rst:          Output<'static>,
+    busy:         Input<'static>,
+    is_screen_on: bool,
+}
+
+fn split_bytes(value: u16) -> (u8, u8) {
+    const MAX_BYTE : u16 = 1<<8;
+    ((value / MAX_BYTE) as u8, (value % MAX_BYTE) as u8)
 }
 
 impl SSD1677 {
@@ -72,12 +105,119 @@ impl SSD1677 {
 
         let cs   = Output::new(peripherals.cs, Level::High);
         let dc   = Output::new(peripherals.dc,  Level::High);
+        let rst  = Output::new(peripherals.rst,  Level::High);
+        let busy = Input::new(peripherals.busy,   Pull::None);
 
         Self {
             spi,
             cs,
             dc,
+            rst,
+            busy,
+            is_screen_on: false,
         }
+    }
+
+    pub fn reset(&mut self) {
+        self.rst.set_high();
+        sleep_ms(20);
+        self.rst.set_low();
+        sleep_ms(2);
+        self.rst.set_high();
+        sleep_ms(20);
+    }
+
+    pub fn soft_reset(&mut self) {
+        self.send_command(SSD1677Command::SoftReset);
+        self.wait_while_busy("soft reset");
+    }
+
+    pub fn set_temp_sensor(&mut self, sensor: u8) {
+        self.send_command(SSD1677Command::TempSensorControl);
+        self.send_byte(sensor);
+    }
+
+    pub fn booster_soft_start(&mut self, sequence: &Buffer) {
+        self.send_command(SSD1677Command::BoosterSoftStart);
+        self.send_data(sequence);
+    }
+
+    pub fn driver_output_control(&mut self, height: u16, mode: DriverOutputControlMode) {
+        const HEIGHT_MAX : u16 = 1<<10; // 10 bits MUX from manual
+                               //
+        if height >= HEIGHT_MAX {
+            panic!("Tried to set driver output with {}, max height is {}", height, HEIGHT_MAX);
+        }
+
+        let max_byte = 1 << 8; // Bits per byte.
+        let mux = height - 1; // Turn into flags for mux.
+        let lower_bits = (mux % max_byte) as u8;
+        let upper_bits = (mux / max_byte) as u8;
+
+        self.send_command(SSD1677Command::DriverOutputControl);
+        self.send_byte(lower_bits);
+        self.send_byte(upper_bits);
+        self.send_byte(mode.bits()); // SM=1
+    }
+
+    pub fn set_border_waveform(&mut self, mode: u8) {
+        self.send_command(SSD1677Command::BorderWaveform);
+        self.send_byte(mode);
+    }
+
+    pub fn auto_write_ram(&mut self, color: Color, value: u8) {
+        let command = match color {
+            Color::BlackWhite => SSD1677Command::AutoWriteBwRam,
+            Color::Red => SSD1677Command::AutoWriteRedRam,
+        };
+
+        self.send_command(command);
+        self.send_byte(value);
+        match color {
+            Color::BlackWhite => self.wait_while_busy("auto write BW RAM"),
+            Color::Red => self.wait_while_busy("auto write Red RAM"),
+        }
+    }
+
+    pub fn display_update_ctrl1(&mut self, command: u8) {
+        self.send_command(SSD1677Command::DisplayUpdateCtrl1);
+        self.send_byte(command);
+    }
+
+    pub fn display_update_ctrl2(&mut self, command: u8) {
+        self.send_command(SSD1677Command::DisplayUpdateCtrl2);
+        self.send_byte(command);
+    }
+
+    pub fn master_activation(&mut self) {
+        self.send_command(SSD1677Command::MasterActivation);
+        self.wait_while_busy("master activation");
+    }
+
+    fn wait_while_busy(&mut self, comment: &str) {
+        let mut timeout = 10_000u32;
+        while self.busy.is_high() {
+            sleep_ms(1u32);
+            timeout -= 1;
+            if timeout == 0 {
+                println!("Timeout waiting for busy: {}", comment);
+                return;
+            }
+        }
+        println!("Ready: {}", comment);
+    }
+
+    pub fn refresh_full(&mut self) {
+        self.display_update_ctrl1(CTRL1_BYPASS_RED);
+
+        let mut mode = 0x34u8;
+        if !self.is_screen_on {
+            self.is_screen_on = true;
+            mode |= 0xC0; // CLOCK_ON + ANALOG_ON
+        }
+
+        self.display_update_ctrl2(mode);
+        self.master_activation();
     }
 
     pub fn write_ram(&mut self, color: Color, buffer: &Buffer) {
@@ -90,6 +230,46 @@ impl SSD1677 {
         self.send_data(buffer);
     }
 
+    pub fn set_ram_x_range(&mut self, x: u16, width: u16) {
+        self.send_command(SSD1677Command::SetRamXRange);
+
+        let (x_upper, x_lower) = split_bytes(x);
+        self.send_byte(x_lower);
+        self.send_byte(x_upper);
+
+        let (o_upper, o_lower) = split_bytes(x + width -1);
+        self.send_byte(o_lower);
+        self.send_byte(o_upper);
+    }
+
+    pub fn set_ram_x_counter(&mut self, x: u16) {
+        self.send_command(SSD1677Command::SetRamXCounter);
+
+        let (x_upper, x_lower) = split_bytes(x);
+        self.send_byte(x_lower);
+        self.send_byte(x_upper);
+    }
+
+    pub fn set_ram_y_range(&mut self, y: u16, height: u16) {
+        self.send_command(SSD1677Command::SetRamYRange);
+
+        let (o_upper, o_lower) = split_bytes(y + height - 1);
+        self.send_byte(o_lower);
+        self.send_byte(o_upper);
+
+        let (y_upper, y_lower) = split_bytes(y);
+        self.send_byte(y_lower);
+        self.send_byte(y_upper);
+    }
+
+    pub fn set_ram_y_counter(&mut self, y: u16, height: u16) {
+        self.send_command(SSD1677Command::SetRamYCounter);
+
+        let (o_upper, o_lower) = split_bytes(y + height - 1);
+        self.send_byte(o_lower);
+        self.send_byte(o_upper);
+    }
+
     pub fn set_data_mode(&mut self, x: DataEntryMode, y: DataEntryMode) {
         let x = if x == DataEntryMode::Increase { 0x1 } else { 0x0 };
         let y = if y == DataEntryMode::Increase { 0x2 } else { 0x0 };
@@ -99,21 +279,21 @@ impl SSD1677 {
         self.send_byte(val);
     }
 
-    pub fn send_command(&mut self, cmd: SSD1677Command) {
+    fn send_command(&mut self, cmd: SSD1677Command) {
         self.dc.set_low();
         self.cs.set_low();
-        self.spi.write_bytes(&[cmd as u8]).unwrap();
+        self.spi.write_byte(cmd as u8).unwrap();
         self.cs.set_high();
     }
 
-    pub fn send_byte(&mut self, data: u8) {
+    fn send_byte(&mut self, data: u8) {
         self.dc.set_high();
         self.cs.set_low();
-        self.spi.write_bytes(&[data]).unwrap();
+        self.spi.write_byte(data).unwrap();
         self.cs.set_high();
     }
 
-    pub fn send_data(&mut self, data: &Buffer) {
+    fn send_data(&mut self, data: &Buffer) {
         self.dc.set_high();
         self.cs.set_low();
 

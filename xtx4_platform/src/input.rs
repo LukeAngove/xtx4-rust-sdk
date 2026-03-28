@@ -56,7 +56,11 @@ impl InputState {
 
     pub fn held_ms(&self, btn: Button, now_ms: u32) -> u32 {
         let start = self.press_start_ms[btn as usize];
-        if start == 0 { 0 } else { now_ms - start }
+        if start == 0 {
+            0
+        } else {
+            now_ms - start
+        }
     }
 }
 
@@ -66,7 +70,9 @@ pub struct InputStateManager {
 
 impl InputStateManager {
     pub fn new() -> Self {
-        Self{ input_state: InputState::new() }
+        Self {
+            input_state: InputState::new(),
+        }
     }
 
     pub fn update(&mut self, platform: &mut impl Platform) -> InputState {
@@ -91,7 +97,7 @@ impl InputStateManager {
                 }
                 (true, false) => {
                     next.press_start_ms[i] = 0;
-                    next.released |=  flag;
+                    next.released |= flag;
                 }
                 _ => {}
             }

@@ -1,14 +1,14 @@
-use embedded_graphics::{
-    prelude::*,
-    geometry::Size,
-    primitives::Rectangle,
-};
+use embedded_graphics::{geometry::Size, prelude::*, primitives::Rectangle};
 
 pub trait Split: Sized {
     fn split_vert<const N: usize>(&self, splits: &[u32; N]) -> [Self; N];
     fn split_horz<const N: usize>(&self, splits: &[u32; N]) -> [Self; N];
     fn inset(&self, margin: u32) -> Self;
-    fn split_grid_custom<const ROWS: usize, const COLS: usize>(&self, row_splits: &[u32; ROWS], col_splits: &[u32; COLS]) -> [[Self; COLS]; ROWS];
+    fn split_grid_custom<const ROWS: usize, const COLS: usize>(
+        &self,
+        row_splits: &[u32; ROWS],
+        col_splits: &[u32; COLS],
+    ) -> [[Self; COLS]; ROWS];
     fn split_grid_even<'b, const ROWS: usize, const COLS: usize>(&'b self) -> [[Self; COLS]; ROWS];
 }
 
@@ -28,21 +28,25 @@ impl Split for Rectangle {
         Rectangle::new(top_left, size)
     }
 
-    fn split_grid_custom<'b, const ROWS: usize, const COLS: usize>(&'b self, row_splits: &[u32; ROWS], col_splits: &[u32; COLS]) -> [[Rectangle; COLS]; ROWS] {
+    fn split_grid_custom<'b, const ROWS: usize, const COLS: usize>(
+        &'b self,
+        row_splits: &[u32; ROWS],
+        col_splits: &[u32; COLS],
+    ) -> [[Rectangle; COLS]; ROWS] {
         let row_rects = split_vert_rects(self, row_splits);
 
-        core::array::from_fn(|row| {
-            split_horz_rects(&row_rects[row], col_splits)
-        })
+        core::array::from_fn(|row| split_horz_rects(&row_rects[row], col_splits))
     }
 
-    fn split_grid_even<'b, const ROWS: usize, const COLS: usize>(&'b self) -> [[Rectangle; COLS]; ROWS] {
+    fn split_grid_even<'b, const ROWS: usize, const COLS: usize>(
+        &'b self,
+    ) -> [[Rectangle; COLS]; ROWS] {
         self.split_grid_custom(&[1; ROWS], &[1; COLS])
     }
 }
 
 fn calc_segments(size: u32, ratios: &[u32]) -> (u32, u32) {
-    let total : u32 = ratios.iter().sum();
+    let total: u32 = ratios.iter().sum();
     let excess = size % total;
     let pixel_segments = size / total;
 

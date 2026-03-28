@@ -14,30 +14,25 @@
 //   Buttons : resistor ladder on ADC (check SDK for voltage thresholds)
 //   Battery : GPIO 0, voltage divider — ADC read = 0.5 × actual voltage
 
-mod spi_screen;
+mod sleep;
+mod ssd1677;
+mod display;
+mod rectangle;
 
 use esp_backtrace as _;
-use esp_hal::{
-    gpio::{Input, Level, Output, Pull},
-};
 
 use esp_println::println;
 use xtx4_platform_interface::{Buttons, Framebuffer, Buffer, Platform, FRAME_WIDTH, FRAME_HEIGHT};
 use core::cell::Cell;
 
-use crate::spi_screen::{SSD1677Command, SSD1677, SSD1677Builder, Color, DataEntryMode};
+use crate::ssd1677::{SSD1677, SSD1677Builder, Color};
+use crate::display::Display;
+use crate::rectangle::Rectangle;
+use crate::sleep::sleep_ms;
 
 // Intentionally inverted, for rotation.
 const DISPLAY_WIDTH: u16  = FRAME_HEIGHT as u16;
 const DISPLAY_HEIGHT: u16 = FRAME_WIDTH as u16;
-
-const CTRL1_BYPASS_RED: u8 = 0x40;
-
-// Screen orientation
-//const DATA_ENTRY_X_DEC_Y_DEC: u8 = 0x00;
-//const DATA_ENTRY_X_INC_Y_DEC: u8 = 0x01;
-//const DATA_ENTRY_X_DEC_Y_INC: u8 = 0x02;
-//const DATA_ENTRY_X_INC_Y_INC: u8 = 0x03;
 
 fn rotate_90(fb: &Framebuffer) -> Framebuffer {
     // Input:  landscape 800w x 480h, row-major, 1bpp
@@ -65,49 +60,30 @@ fn rotate_90(fb: &Framebuffer) -> Framebuffer {
     out
 }
 
-#[derive(PartialEq, Eq, Copy, Clone)]
-pub struct Rectangle {
-    x: u16,
-    y: u16,
-    w: u16,
-    h: u16,
-}
-
 pub struct Esp32Platform {
-    display:      SSD1677,
-    rst:          Output<'static>,
-    busy:         Input<'static>,
-    ram_region:   Option<Rectangle>,
-    is_screen_on: bool,
+    //display:      SSD1677,
+    display:      Display,
 }
 
 impl Esp32Platform {
     pub fn new() -> Self {
         let peripherals = esp_hal::init(esp_hal::Config::default());
 
-        let rst  = Output::new(peripherals.GPIO5,  Level::High);
-        let busy = Input::new(peripherals.GPIO6,   Pull::None);
-
         let builder = SSD1677Builder {
-            spi: peripherals.SPI2,
+            spi: peripherals.SPI2.into(),
             sck: peripherals.GPIO8.into(),
             mosi: peripherals.GPIO10.into(),
             cs: peripherals.GPIO21.into(),
             dc: peripherals.GPIO4.into(),
+            rst: peripherals.GPIO5.into(),
+            busy: peripherals.GPIO6.into(),
         };
-        let display = SSD1677::new(builder);
+        let controller = SSD1677::new(builder);
+        let display = Display::new(controller, DISPLAY_WIDTH, DISPLAY_HEIGHT);
 
-        let mut platform = Self {
+        Self {
             display,
-            rst,
-            busy,
-            ram_region: None,
-            is_screen_on: false,
-        };
-
-        platform.reset_display();
-        platform.init_controller();
-        platform
+        }
     }
 
     fn full_display_rect(&self) -> Rectangle {
@@ -118,145 +94,6 @@ impl Esp32Platform {
             h: DISPLAY_HEIGHT,
         }
     }
-
-    fn reset_display(&mut self) {
-        self.rst.set_high();
-        self.sleep_ms(20u32);
-        self.rst.set_low();
-        self.sleep_ms(2u32);
-        self.rst.set_high();
-        self.sleep_ms(20u32);
-    }
-
-    fn wait_while_busy(&mut self, comment: &str) {
-        let mut timeout = 10_000u32;
-        while self.busy.is_high() {
-            self.sleep_ms(1u32);
-            timeout -= 1;
-            if timeout == 0 {
-                println!("Timeout waiting for busy: {}", comment);
-                return;
-            }
-        }
-        println!("Ready: {}", comment);
-    }
-
-    fn write_region(&mut self, color: Color, buffer: &Buffer, rect: &Rectangle) {
-        let Rectangle{x, y, w,h} = rect;
-        let bytes_to_write = (*w as usize)*(*h as usize)/8;
-
-        if bytes_to_write != buffer.as_slice_of_cells().len() {
-            panic!("Incorrect size for region write! Expected: {}, got: {} ({},{}) at ({}, {})", buffer.as_slice_of_cells().len(), bytes_to_write, w, h, x, y);
-        }
-
-        if self.ram_region != Some(*rect) {
-            self.set_ram_area(rect);
-        }
-
-        self.display.write_ram(color, buffer);
-    }
-
-    fn set_ram_area(&mut self, region: &Rectangle) {
-        // Don't bother setting region if it's already set.
-        let region : Rectangle = region.clone();
-        if self.ram_region == Some(region) {
-            return;
-        }
-
-        // Set to 'None' during processing.
-        // We should never race, but it's better practice
-        // than ignoring it.
-        self.ram_region = None;
-        let Rectangle {x,y,w,h} = region;
-
-        let y = DISPLAY_HEIGHT - y - h; // reverse Y for this display
-
-        self.display.set_data_mode(DataEntryMode::Increase, DataEntryMode::Decrease);
-
-        self.display.send_command(SSD1677Command::SetRamXRange);
-        self.display.send_byte((x % 256) as u8);
-        self.display.send_byte((x / 256) as u8);
-        self.display.send_byte(((x + w - 1) % 256) as u8);
-        self.display.send_byte(((x + w - 1) / 256) as u8);
-
-        self.display.send_command(SSD1677Command::SetRamYRange);
-        self.display.send_byte(((y + h - 1) % 256) as u8);
-        self.display.send_byte(((y + h - 1) / 256) as u8);
-        self.display.send_byte((y % 256) as u8);
-        self.display.send_byte((y / 256) as u8);
-
-        self.display.send_command(SSD1677Command::SetRamXCounter);
-        self.display.send_byte((x % 256) as u8);
-        self.display.send_byte((x / 256) as u8);
-
-        self.display.send_command(SSD1677Command::SetRamYCounter);
-        self.display.send_byte(((y + h - 1) % 256) as u8);
-        self.display.send_byte(((y + h - 1) / 256) as u8);
-
-        self.ram_region = Some(region);
-    }
-
-    fn init_controller(&mut self) {
-        println!("Initializing SSD1677...");
-
-        self.display.send_command(SSD1677Command::SoftReset);
-        self.wait_while_busy("soft reset");
-
-        self.display.send_command(SSD1677Command::TempSensorControl);
-        self.display.send_byte(0x80); // internal temp sensor
-
-        self.display.send_command(SSD1677Command::BoosterSoftStart);
-        let command = Cell::new([0xAEu8, 0xC7, 0xC3, 0xC0, 0x40]);
-        self.display.send_data(&command);
-
-        self.display.send_command(SSD1677Command::DriverOutputControl);
-        self.display.send_byte(((DISPLAY_HEIGHT - 1) % 256) as u8);
-        self.display.send_byte(((DISPLAY_HEIGHT - 1) / 256) as u8);
-        self.display.send_byte(0x02); // SM=1
-
-        self.display.send_command(SSD1677Command::BorderWaveform);
-        self.display.send_byte(0x01);
-
-        let full_screen = self.full_display_rect();
-
-        self.set_ram_area(&full_screen);
-
-        self.display.send_command(SSD1677Command::AutoWriteBwRam);
-        self.display.send_byte(0xF7);
-        self.wait_while_busy("auto write BW RAM");
-
-        self.display.send_command(SSD1677Command::AutoWriteRedRam);
-        self.display.send_byte(0xF7);
-        self.wait_while_busy("auto write RED RAM");
-
-        println!("SSD1677 ready");
-    }
-
-    fn refresh_full(&mut self) {
-        self.display.send_command(SSD1677Command::DisplayUpdateCtrl1);
-        self.display.send_byte(CTRL1_BYPASS_RED);
-
-        let mut mode = 0x34u8;
-        if !self.is_screen_on {
-            self.is_screen_on = true;
-            mode |= 0xC0; // CLOCK_ON + ANALOG_ON
-        }
-
-        self.display.send_command(SSD1677Command::DisplayUpdateCtrl2);
-        self.display.send_byte(mode);
-        self.display.send_command(SSD1677Command::MasterActivation);
-        self.wait_while_busy("full refresh");
-    }
-
-    //fn write_ram_buffer(&mut self, ramBuffer: u8, data: Buffer, size: usize) {
-    //  let bufferName = if (ramBuffer == SSD1677Command::WriteRamBw) { "BW" } else { "RED" };
-    //  println!("Writing frame buffer to {} RAM ({} bytes)...\n", bufferName, size);
-
-    //  sendCommand(ramBuffer);
-    //  sendData(data, size);
-
-    //  println!("{} RAM write complete ({} ms)\n", bufferName, duration);
-    //}
 
     /*fn display_window(&mut self, fb: &Framebuffer, x: u16, y: u16, w: u16, h: u16, turn_off_screen: bool) {
       println!("Displaying window at ({},{}) size ({}x{})", x, y, w, h);
@@ -335,9 +172,9 @@ impl Platform for Esp32Platform {
 
         self.log("display_flush");
         let full_screen = self.full_display_rect();
-        self.write_region(Color::BlackWhite, &rotated, &full_screen);
-        self.write_region(Color::Red, &rotated, &full_screen);
-        self.refresh_full();
+        self.display.write_region(Color::BlackWhite, &rotated, &full_screen);
+        self.display.write_region(Color::Red, &rotated, &full_screen);
+        self.display.refresh_full();
     }
 
     fn display_flush_partial(&mut self, _fb: &Cell<[u8]>, _x: u16, _y: u16, _w: u16, _h: u16) {
@@ -356,7 +193,7 @@ impl Platform for Esp32Platform {
     }
 
     fn sleep_ms(&mut self, ms: u32) {
-        esp_hal::delay::Delay::new().delay_millis(ms);
+        sleep_ms(ms);
     }
 
     fn log(&mut self, msg: &str) {

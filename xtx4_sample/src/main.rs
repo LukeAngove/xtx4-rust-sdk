@@ -1,12 +1,14 @@
 #![no_std]
 #![no_main]
-use xtx4_platform::{XtX4, Button, Canvas, STYLE_BLACK, bit_buf};
+//use xtx4_platform::{XtX4, Button, Canvas, STYLE_BLACK, bit_buf};
 use embedded_graphics::{
-    prelude::*,
     mono_font::{ascii::FONT_6X10, MonoTextStyle},
+    prelude::*,
+    //primitives::{Rectangle, PrimitiveStyleBuilder},
+    primitives::PrimitiveStyleBuilder,
     text::Text,
-    primitives::{Rectangle, PrimitiveStyleBuilder},
 };
+use xtx4_platform::{bit_buf, Canvas, XtX4, STYLE_BLACK};
 
 #[no_mangle]
 fn main() {
@@ -14,7 +16,7 @@ fn main() {
     platform.log("Started!");
 
     let text_style = MonoTextStyle::new(&FONT_6X10, STYLE_BLACK);
-    let line_style = PrimitiveStyleBuilder::new()
+    let _line_style = PrimitiveStyleBuilder::new()
         .stroke_color(STYLE_BLACK)
         .stroke_width(2)
         .fill_color(STYLE_BLACK)
@@ -28,10 +30,15 @@ fn main() {
 
     let buf = bit_buf!(0xffu8; (480, 800));
     let mut canvas = Canvas::new(&buf, Size::new(480, 800));
-    Text::new("Hello X4! I'm here!", Point::new(10, 20), text_style).draw(&mut canvas).expect("Invalid draw!");
+    Text::new("Blue, Red! Run!", Point::new(10, 20), text_style)
+        .draw(&mut canvas)
+        .expect("Invalid draw!");
+    Text::new("Luke, Blue asdfl! Still2!", Point::new(20, 30), text_style)
+        .draw(&mut canvas)
+        .expect("Invalid draw!");
     platform.display_full_flush(&canvas);
 
-    platform.log("Into loop!");
+    platform.log("Into loop 4!");
 
     //let buf = bit_buf!(0xffu8; (100, 100));
     //let mut canvas = Canvas::new(&buf, Size::new(100,100));
