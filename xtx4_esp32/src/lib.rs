@@ -61,7 +61,6 @@ fn rotate_90(fb: &Framebuffer) -> Framebuffer {
 }
 
 pub struct Esp32Platform {
-    //display:      SSD1677,
     display:      Display,
 }
 
@@ -85,84 +84,6 @@ impl Esp32Platform {
             display,
         }
     }
-
-    fn full_display_rect(&self) -> Rectangle {
-        Rectangle {
-            x: 0,
-            y: 0,
-            w: DISPLAY_WIDTH,
-            h: DISPLAY_HEIGHT,
-        }
-    }
-
-    /*fn display_window(&mut self, fb: &Framebuffer, x: u16, y: u16, w: u16, h: u16, turn_off_screen: bool) {
-      println!("Displaying window at ({},{}) size ({}x{})", x, y, w, h);
-
-      // Validate bounds
-      if (x + w > DISPLAY_WIDTH) || (y + h > DISPLAY_HEIGHT) {
-        println!("ERROR: Window bounds exceed display dimensions!");
-        return;
-      }
-
-      // Validate byte alignment
-      if (x % 8 != 0) || (w % 8 != 0) {
-        println!("ERROR: Window x and width must be byte-aligned (multiples of 8)!");
-        return;
-      }
-
-      // displayWindow is not supported while the rest of the screen has grayscale content, revert it
-      //if (inGrayscaleMode) {
-      //  inGrayscaleMode = false;
-      //  grayscaleRevert();
-      //}
-
-      // Calculate window buffer size
-      let window_width_bytes = w / 8;
-      let window_buffer_size = window_width_bytes * h;
-
-      println!("Window buffer size: {} bytes ({} x {} pixels)", window_buffer_size, w, h);
-
-      // Allocate temporary buffer on stack
-      let window_buffer = Cell::new([0u8; window_buffer_size]);
-
-      // Extract window region from frame buffer
-      for row in 0..h {
-        let src_y = y + row;
-        let src_offset = src_y * (DISPLAY_WIDTH / 8) + (x / 8);
-        let dst_offset = row * window_width_bytes;
-        //memcpy(window_buffer[dstOffset], frameBuffer[srcOffset], window_width_bytes);
-      }
-
-      let window_rect = Rectangle{x, y, w, h};
-      self.write_region(Color::BlackWhite, window_buffer, &window_rect);
-
-      let single_buffer_mode = false;
-
-      if !single_buffer_mode {
-          // Dual buffer: Extract window from frameBufferActive (previous frame)
-          let previous_window_buffer = Cell::new([0u8; window_buffer_size]);
-
-          for row in 0..h {
-            let src_y = y + row;
-            let src_offset = src_y * (DISPLAY_WIDTH / 8) + (x / 8);
-            let dst_offset = row * window_width_bytes;
- 
-            //memcpy(previous_window_buffer[dstOffset], frame_buffer_active[srcOffset], window_width_bytes);
-          }
-
-          self.write_region(Color::Red, previous_window_buffer, &window_rect);
-      }
-
-      // Perform fast refresh
-      //refreshDisplay(FAST_REFRESH, turnOffScreen);
-
-      if single_buffer_mode {
-          // Post-refresh: Sync RED RAM with current window (for next fast refresh)
-          self.write_region(Color::Red, window_buffer, &window_rect);
-      }
-
-      println!("Window display complete");
-    }*/
 }
 
 impl Platform for Esp32Platform {
@@ -171,13 +92,13 @@ impl Platform for Esp32Platform {
         let rotated = rotate_90(fb);
 
         self.log("display_flush");
-        let full_screen = self.full_display_rect();
+        let full_screen = self.display.full_display_rect();
         self.display.write_region(Color::BlackWhite, &rotated, &full_screen);
         self.display.write_region(Color::Red, &rotated, &full_screen);
         self.display.refresh_full();
     }
 
-    fn display_flush_partial(&mut self, _fb: &Cell<[u8]>, _x: u16, _y: u16, _w: u16, _h: u16) {
+    fn display_flush_partial(&mut self, _fb: &Buffer, _x: u16, _y: u16, _w: u16, _h: u16) {
         todo!()
     }
 

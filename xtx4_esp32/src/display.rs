@@ -3,7 +3,7 @@ use esp_println::println;
 use core::cell::Cell;
 
 use xtx4_platform_interface::Buffer;
-use crate::ssd1677::{SSD1677, Color, DriverOutputControlMode, DataEntryMode};
+use crate::ssd1677::{SSD1677, Color, DriverOutputControlMode, DataEntryMode, Range};
 use crate::rectangle::Rectangle;
 
 pub struct Display {
@@ -76,13 +76,30 @@ impl Display {
         // Don't bother setting region if it's already set.
         let Rectangle {x,y,w,h} = *region;
 
-        let y = self.height - y - h; // reverse Y for this display
+        let y = self.height - y - h; // reverse Y for this Display
 
-        self.controller.set_data_mode(DataEntryMode::Increase, DataEntryMode::Decrease);
-        self.controller.set_ram_x_range(x, w);
-        self.controller.set_ram_y_range(y, h);
-        self.controller.set_ram_x_counter(x);
-        self.controller.set_ram_y_counter(y, h);
+        // Flipping these reflects the display in that axis.
+        let x_dir = DataEntryMode::Increase;
+        let y_dir = DataEntryMode::Decrease;
+
+        let x_ends = match x_dir {
+            DataEntryMode::Increase => (x, x+w-1),
+            DataEntryMode::Decrease => (x+w-1, x),
+        };
+
+        let y_ends = match y_dir {
+            DataEntryMode::Increase => (y, y+h-1),
+            DataEntryMode::Decrease => (y+h-1, y),
+        };
+
+        self.controller.set_data_mode(x_dir, y_dir);
+
+        self.controller.set_ram_range(Range::X, x_ends.0, x_ends.1);
+        self.controller.set_ram_range(Range::Y, y_ends.0, y_ends.1);
+
+        // We might need to always reset the counters, even if the region is the same.
+        self.controller.set_ram_counter(Range::X, x_ends.0);
+        self.controller.set_ram_counter(Range::Y, y_ends.0);
     }
 
     pub fn write_region(&mut self, color: Color, buffer: &Buffer, rect: &Rectangle) {
@@ -103,4 +120,74 @@ impl Display {
     pub fn refresh_full(&mut self) {
         self.controller.refresh_full();
     }
+
+    /*fn display_window(&mut self, fb: &Framebuffer, x: u16, y: u16, w: u16, h: u16, turn_off_screen: bool) {
+      println!("Displaying window at ({},{}) size ({}x{})", x, y, w, h);
+
+      // Validate bounds
+      if (x + w > DISPLAY_WIDTH) || (y + h > DISPLAY_HEIGHT) {
+        println!("ERROR: Window bounds exceed display dimensions!");
+        return;
+      }
+
+      // Validate byte alignment
+      if (x % 8 != 0) || (w % 8 != 0) {
+        println!("ERROR: Window x and width must be byte-aligned (multiples of 8)!");
+        return;
+      }
+
+      // displayWindow is not supported while the rest of the screen has grayscale content, revert it
+      //if (inGrayscaleMode) {
+      //  inGrayscaleMode = false;
+      //  grayscaleRevert();
+      //}
+
+      // Calculate window buffer size
+      let window_width_bytes = w / 8;
+      let window_buffer_size = window_width_bytes * h;
+
+      println!("Window buffer size: {} bytes ({} x {} pixels)", window_buffer_size, w, h);
+
+      // Allocate temporary buffer on stack
+      let window_buffer = Cell::new([0u8; window_buffer_size]);
+
+      // Extract window region from frame buffer
+      for row in 0..h {
+        let src_y = y + row;
+        let src_offset = src_y * (DISPLAY_WIDTH / 8) + (x / 8);
+        let dst_offset = row * window_width_bytes;
+        //memcpy(window_buffer[dstOffset], frameBuffer[srcOffset], window_width_bytes);
+      }
+
+      let window_rect = Rectangle{x, y, w, h};
+      self.write_region(Color::BlackWhite, window_buffer, &window_rect);
+
+      let single_buffer_mode = false;
+
+      if !single_buffer_mode {
+          // Dual buffer: Extract window from frameBufferActive (previous frame)
+          let previous_window_buffer = Cell::new([0u8; window_buffer_size]);
+
+          for row in 0..h {
+            let src_y = y + row;
+            let src_offset = src_y * (DISPLAY_WIDTH / 8) + (x / 8);
+            let dst_offset = row * window_width_bytes;
+ 
+            //memcpy(previous_window_buffer[dstOffset], frame_buffer_active[srcOffset], window_width_bytes);
+          }
+
+          self.write_region(Color::Red, previous_window_buffer, &window_rect);
+      }
+
+      // Perform fast refresh
+      //refreshDisplay(FAST_REFRESH, turnOffScreen);
+
+      if single_buffer_mode {
+          // Post-refresh: Sync RED RAM with current window (for next fast refresh)
+          self.write_region(Color::Red, window_buffer, &window_rect);
+      }
+
+      println!("Window display complete");
+    }*/
+
 }

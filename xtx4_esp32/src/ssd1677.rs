@@ -230,42 +230,29 @@ impl SSD1677 {
         self.send_data(buffer);
     }
 
-    pub fn set_ram_x_range(&mut self, x: u16, width: u16) {
-        self.send_command(SSD1677Command::SetRamXRange);
+    pub fn set_ram_range(&mut self, range: Range, start: u16, end: u16) {
+        let command = match range {
+            Range::X => SSD1677Command::SetRamXRange,
+            Range::Y => SSD1677Command::SetRamYRange,
+        };
+        self.send_command(command);
 
-        let (x_upper, x_lower) = split_bytes(x);
-        self.send_byte(x_lower);
-        self.send_byte(x_upper);
+        let (s_upper, s_lower) = split_bytes(start);
+        self.send_byte(s_lower);
+        self.send_byte(s_upper);
 
-        let (o_upper, o_lower) = split_bytes(x + width -1);
-        self.send_byte(o_lower);
-        self.send_byte(o_upper);
+        let (e_upper, e_lower) = split_bytes(end);
+        self.send_byte(e_lower);
+        self.send_byte(e_upper);
     }
 
-    pub fn set_ram_x_counter(&mut self, x: u16) {
-        self.send_command(SSD1677Command::SetRamXCounter);
+    pub fn set_ram_counter(&mut self, range: Range, val: u16) {
+        let command = match range {
+            Range::X => SSD1677Command::SetRamXCounter,
+            Range::Y => SSD1677Command::SetRamYCounter,
+        };
 
-        let (x_upper, x_lower) = split_bytes(x);
-        self.send_byte(x_lower);
-        self.send_byte(x_upper);
-    }
-
-    pub fn set_ram_y_range(&mut self, y: u16, height: u16) {
-        self.send_command(SSD1677Command::SetRamYRange);
-
-        let (o_upper, o_lower) = split_bytes(y + height - 1);
-        self.send_byte(o_lower);
-        self.send_byte(o_upper);
-
-        let (y_upper, y_lower) = split_bytes(y);
-        self.send_byte(y_lower);
-        self.send_byte(y_upper);
-    }
-
-    pub fn set_ram_y_counter(&mut self, y: u16, height: u16) {
-        self.send_command(SSD1677Command::SetRamYCounter);
-
-        let (o_upper, o_lower) = split_bytes(y + height - 1);
+        let (o_upper, o_lower) = split_bytes(val);
         self.send_byte(o_lower);
         self.send_byte(o_upper);
     }
