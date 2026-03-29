@@ -1,12 +1,13 @@
 use esp_hal::{
-    prelude::*,
-    spi,
-    spi::AnySpi,
-    spi::master::Spi,
-    spi::SpiMode,
+    time::Rate,
+    spi::{
+        Mode,
+        master::{Spi, Config, AnySpi},
+    },
     gpio::{Level, Pull, Input, Output, AnyPin},
 };
-use embassy_embedded_hal::SetConfig;
+use esp_hal::gpio::InputConfig;
+use esp_hal::gpio::OutputConfig;
 use esp_println::println;
 use xtx4_platform_interface::{Buffer};
 use bitflags::bitflags;
@@ -66,13 +67,13 @@ bitflags! {
 }
 
 pub struct SSD1677Builder {
-    pub spi: AnySpi, 
-    pub sck: AnyPin,
-    pub mosi: AnyPin,
-    pub cs: AnyPin,
-    pub dc: AnyPin,
-    pub rst: AnyPin,
-    pub busy: AnyPin,
+    pub spi: AnySpi<'static>, 
+    pub sck: AnyPin<'static>,
+    pub mosi: AnyPin<'static>,
+    pub cs: AnyPin<'static>,
+    pub dc: AnyPin<'static>,
+    pub rst: AnyPin<'static>,
+    pub busy: AnyPin<'static>,
 }
 
 pub struct SSD1677 {
@@ -91,19 +92,22 @@ fn split_bytes(value: u16) -> (u8, u8) {
 
 impl SSD1677 {
     pub fn new(peripherals: SSD1677Builder) -> Self {
-        let mut spi = Spi::new(peripherals.spi)
+        let config = Config::default()
+            .with_frequency(Rate::from_mhz(40u32))
+            .with_mode(Mode::_0);
+
+        let spi = Spi::new(peripherals.spi, config)
+            .expect("SPI failed to initialise")
             .with_sck(peripherals.sck)
             .with_mosi(peripherals.mosi);
-        spi.set_config(&spi::master::Config {
-                frequency: 40u32.MHz(),
-                mode: SpiMode::Mode0,
-                ..spi::master::Config::default()
-            }).unwrap();
 
-        let cs   = Output::new(peripherals.cs, Level::High);
-        let dc   = Output::new(peripherals.dc, Level::High);
-        let rst  = Output::new(peripherals.rst, Level::High);
-        let busy = Input::new(peripherals.busy, Pull::None);
+        let out_config = OutputConfig::default();
+        let cs   = Output::new(peripherals.cs, Level::High, out_config);
+        let dc   = Output::new(peripherals.dc, Level::High, out_config);
+        let rst  = Output::new(peripherals.rst, Level::High, out_config);
+
+        let busy_config = InputConfig::default().with_pull(Pull::None);
+        let busy = Input::new(peripherals.busy, busy_config);
 
         Self {
             spi,
@@ -268,14 +272,14 @@ impl SSD1677 {
     fn send_command(&mut self, cmd: SSD1677Command) {
         self.dc.set_low();
         self.cs.set_low();
-        self.spi.write_byte(cmd as u8).unwrap();
+        self.spi.write(&[cmd as u8]).unwrap();
         self.cs.set_high();
     }
 
     fn send_byte(&mut self, data: u8) {
         self.dc.set_high();
         self.cs.set_low();
-        self.spi.write_byte(data).unwrap();
+        self.spi.write(&[data]).unwrap();
         self.cs.set_high();
     }
 
@@ -285,7 +289,7 @@ impl SSD1677 {
 
         // SAFETY: read-only, fixed lifetime use
         let data: &[u8] = unsafe { &*(data.as_ptr()) };
-        self.spi.write_bytes(data).unwrap();
+        self.spi.write(data).unwrap();
 
         self.cs.set_high();
     }

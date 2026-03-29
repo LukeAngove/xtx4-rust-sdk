@@ -1,9 +1,12 @@
-use esp_hal::prelude::*;
 use esp_hal::analog::adc::{Adc, AdcConfig, Attenuation, AdcPin};
-use esp_hal::gpio::{Pull, Input, AnyPin, GpioPin};
+use esp_hal::gpio::{Pull, Input, AnyPin, InputConfig};
 use esp_hal::analog::adc::AdcChannel;
+use esp_hal::analog::adc::AdcCalBasic;
+use esp_hal::analog::adc::AdcCalCurve;
+use esp_hal::analog::adc::AdcCalScheme;
 use esp_hal::analog::adc::RegisterAccess;
-use esp_hal::peripherals::ADC1;
+use esp_hal::peripherals::{ADC1, GPIO1, GPIO2};
+use esp_hal::Blocking;
 use esp_println::println;
 use xtx4_platform_interface::{Buttons};
 
@@ -18,11 +21,11 @@ const ADC_RANGES_1: [u16; 5] = [ADC_NO_BUTTON, 3100, 2090, 750, 0];
 const ADC_RANGES_2: [u16; 3] = [ADC_NO_BUTTON, 1120, 0];
 
 
-//fn read_adc_button(adc: &mut Adc<esp_hal::peripherals::ADC1>, pin: &mut AdcPin<esp_hal::gpio::GpioPin<N>, esp_hal::peripherals::ADC1>, ranges: &[u16]) -> Option<usize> {
-fn read_adc_button<'a, ADC, Pin>(adc: &mut Adc<'a, ADC>, pin: &mut AdcPin<Pin, ADC>, ranges: &[u16]) -> Option<usize>
+fn read_adc_button<'a, ADC, Pin, Calibration>(adc: &mut Adc<'a, ADC, Blocking>, pin: &mut AdcPin<Pin, ADC, Calibration>, ranges: &[u16]) -> Option<usize>
 where
-    ADC: RegisterAccess,
+    ADC: RegisterAccess + 'a,
     Pin: AdcChannel,
+    Calibration: AdcCalScheme<ADC>
 {
     let value: u16 = nb::block!(adc.read_oneshot(pin)).unwrap();
     println!("ADC read: {}", value);
@@ -49,20 +52,24 @@ where
 
 pub struct Xtx4Buttons
 {
-    adc: Adc<'static, ADC1>,
-    face_pin: AdcPin<GpioPin<1>, ADC1>,
-    side_pin: AdcPin<GpioPin<2>, ADC1>,
+    adc: Adc<'static, ADC1<'static>, Blocking>,
+    face_pin: AdcPin<GPIO1<'static>, ADC1<'static>, AdcCalBasic<ADC1<'static>>>,
+    side_pin: AdcPin<GPIO2<'static>, ADC1<'static>, AdcCalBasic<ADC1<'static>>>,
     power: Input<'static>,
 }
 
 impl Xtx4Buttons
 {
-    pub fn new(adc: ADC1, face_pin: GpioPin<1>, side_pin: GpioPin<2>, power: AnyPin) -> Self {
+    pub fn new(adc: ADC1<'static>, face_pin: GPIO1<'static>, side_pin: GPIO2<'static>, power: AnyPin<'static>) -> Self {
         let mut adc_config = AdcConfig::new();
-        let face_pin = adc_config.enable_pin(face_pin, Attenuation::_11dB);
-        let side_pin = adc_config.enable_pin(side_pin, Attenuation::_11dB);
+        //let face_pin = adc_config.enable_pin(face_pin, Attenuation::_11dB);
+        let face_pin = adc_config.enable_pin_with_cal::<_, AdcCalBasic<ADC1<'static>>>(face_pin, Attenuation::_11dB);
+        //let side_pin = adc_config.enable_pin(side_pin, Attenuation::_11dB);
+        let side_pin = adc_config.enable_pin_with_cal::<_, AdcCalBasic<ADC1<'static>>>(side_pin, Attenuation::_11dB);
         let adc = Adc::new(adc, adc_config);
-        let power = Input::new(power, Pull::Up);
+
+        let power_config = InputConfig::default().with_pull(Pull::Up);
+        let power = Input::new(power, power_config);
 
         Self {
             adc,
