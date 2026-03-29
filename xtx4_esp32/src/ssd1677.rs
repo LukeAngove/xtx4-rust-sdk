@@ -2,7 +2,7 @@ use esp_hal::{
     prelude::*,
     spi,
     spi::AnySpi,
-    spi::master::{Spi},
+    spi::master::Spi,
     spi::SpiMode,
     gpio::{Level, Pull, Input, Output, AnyPin},
 };
@@ -11,10 +11,7 @@ use esp_println::println;
 use xtx4_platform_interface::{Buffer};
 use bitflags::bitflags;
 
-use core::cell::Cell;
-
 use crate::sleep::sleep_ms;
-use crate::rectangle::Rectangle;
 
 const CTRL1_BYPASS_RED: u8 = 0x40;
 
@@ -104,9 +101,9 @@ impl SSD1677 {
             }).unwrap();
 
         let cs   = Output::new(peripherals.cs, Level::High);
-        let dc   = Output::new(peripherals.dc,  Level::High);
-        let rst  = Output::new(peripherals.rst,  Level::High);
-        let busy = Input::new(peripherals.busy,   Pull::None);
+        let dc   = Output::new(peripherals.dc, Level::High);
+        let rst  = Output::new(peripherals.rst, Level::High);
+        let busy = Input::new(peripherals.busy, Pull::None);
 
         Self {
             spi,
@@ -251,6 +248,8 @@ impl SSD1677 {
             Range::X => SSD1677Command::SetRamXCounter,
             Range::Y => SSD1677Command::SetRamYCounter,
         };
+
+        self.send_command(command);
 
         let (o_upper, o_lower) = split_bytes(val);
         self.send_byte(o_lower);

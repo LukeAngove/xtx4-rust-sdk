@@ -1,14 +1,12 @@
 #![no_std]
 #![no_main]
-//use xtx4_platform::{XtX4, Button, Canvas, STYLE_BLACK, bit_buf};
+use xtx4_platform::{XtX4, Button, Canvas, STYLE_BLACK, bit_buf};
 use embedded_graphics::{
     mono_font::{ascii::FONT_6X10, MonoTextStyle},
     prelude::*,
-    //primitives::{Rectangle, PrimitiveStyleBuilder},
-    primitives::PrimitiveStyleBuilder,
+    primitives::{Rectangle, PrimitiveStyleBuilder},
     text::Text,
 };
-use xtx4_platform::{bit_buf, Canvas, XtX4, STYLE_BLACK};
 
 #[no_mangle]
 fn main() {
@@ -16,7 +14,7 @@ fn main() {
     platform.log("Started!");
 
     let text_style = MonoTextStyle::new(&FONT_6X10, STYLE_BLACK);
-    let _line_style = PrimitiveStyleBuilder::new()
+    let line_style = PrimitiveStyleBuilder::new()
         .stroke_color(STYLE_BLACK)
         .stroke_width(2)
         .fill_color(STYLE_BLACK)
@@ -30,10 +28,10 @@ fn main() {
 
     let buf = bit_buf!(0xffu8; (480, 800));
     let mut canvas = Canvas::new(&buf, Size::new(480, 800));
-    Text::new("Blue, Red! Run!", Point::new(10, 20), text_style)
+    Text::new("Blue, Purple! asdf!", Point::new(10, 20), text_style)
         .draw(&mut canvas)
         .expect("Invalid draw!");
-    Text::new("Luke, Blue asdfl! Still2!", Point::new(20, 30), text_style)
+    Text::new("Luke, Rodger! blue! Still2!", Point::new(20, 30), text_style)
         .draw(&mut canvas)
         .expect("Invalid draw!");
     platform.display_full_flush(&canvas);
@@ -46,30 +44,32 @@ fn main() {
     //platform.display_partial_at(&canvas, Point::new(50,50));
 
     //platform.log("Starting main loop...");
+    
+    let mut counter = 0;
 
     loop {
-        //let input = platform.update_input();
+        let input = platform.update_input();
 
-        //if input.was_pressed(Button::LeftOuter) {
-        //    // Full refresh - draw black rectangle top left
-        //    let full_canvas = platform.canvas();
+        if input.was_pressed(Button::LeftOuter) {
+            // Full refresh - draw black rectangle top left
+            let full_canvas = platform.canvas();
 
-        //    let [mut top, bottom] = full_canvas.split_vert(&[1, 3]);
-        //    let [mut bl, mut br] = bottom.split_horz(&[1,1]);
+            let [mut top, bottom] = full_canvas.split_vert(&[1, 3]);
+            let [mut bl, mut br] = bottom.split_horz(&[1,1]);
 
-        //    let rect = Rectangle::new(Point::new(40,40), Size::new(100,100)).into_styled(line_style);
-        //    rect.draw(&mut top);
-        //    rect.draw(&mut bl);
-        //    rect.draw(&mut br);
-        //    platform.display_flush();
-        //}
+            let rect = Rectangle::new(Point::new(40,40), Size::new(100,100)).into_styled(line_style);
+            rect.draw(&mut top);
+            rect.draw(&mut bl);
+            rect.draw(&mut br);
+            platform.display_flush();
+        }
 
-        //if input.was_pressed(Button::LeftInner) {
-        //    let full_canvas = platform.canvas();
-        //    // Full refresh - clear to white
-        //    full_canvas.fill(0xFF);
-        //    platform.display_flush();
-        //}
+        if input.was_pressed(Button::LeftInner) {
+            let full_canvas = platform.canvas();
+            // Full refresh - clear to white
+            full_canvas.fill(0xFF);
+            platform.display_flush();
+        }
 
         //if input.was_pressed(Button::RightInner) {
         //    // Partial refresh - draw small black square
@@ -116,7 +116,11 @@ fn main() {
         //    platform.power_off();
         //}
 
-        platform.log("Loop!");
-        platform.sleep_ms(5000);
+        if counter % 30 == 0 {
+            platform.log("Loop!");
+            counter = 0;
+        }
+        counter += 1;
+        platform.sleep_ms(10);
     }
 }

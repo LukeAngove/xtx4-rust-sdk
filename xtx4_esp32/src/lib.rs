@@ -17,18 +17,18 @@
 mod sleep;
 mod ssd1677;
 mod display;
+mod buttons;
 mod rectangle;
 
 use esp_backtrace as _;
 
 use esp_println::println;
 use xtx4_platform_interface::{Buttons, Framebuffer, Buffer, Platform, FRAME_WIDTH, FRAME_HEIGHT};
-use core::cell::Cell;
 
 use crate::ssd1677::{SSD1677, SSD1677Builder, Color};
 use crate::display::Display;
-use crate::rectangle::Rectangle;
 use crate::sleep::sleep_ms;
+use crate::buttons::Xtx4Buttons;
 
 // Intentionally inverted, for rotation.
 const DISPLAY_WIDTH: u16  = FRAME_HEIGHT as u16;
@@ -61,7 +61,8 @@ fn rotate_90(fb: &Framebuffer) -> Framebuffer {
 }
 
 pub struct Esp32Platform {
-    display:      Display,
+    display: Display,
+    buttons: Xtx4Buttons,
 }
 
 impl Esp32Platform {
@@ -79,9 +80,11 @@ impl Esp32Platform {
         };
         let controller = SSD1677::new(builder);
         let display = Display::new(controller, DISPLAY_WIDTH, DISPLAY_HEIGHT);
+        let buttons = Xtx4Buttons::new(peripherals.ADC1, peripherals.GPIO1, peripherals.GPIO2, peripherals.GPIO3.into());
 
         Self {
             display,
+            buttons,
         }
     }
 }
@@ -103,10 +106,7 @@ impl Platform for Esp32Platform {
     }
 
     fn button_state(&mut self) -> Buttons {
-        // TODO: read ADC, map voltage ranges to buttons.
-        // Thresholds are in the community SDK hardware lib.
-        //todo!()
-        Buttons::empty()
+        self.buttons.button_state()
     }
 
     fn now_ms(&self) -> u32 {

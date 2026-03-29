@@ -22,7 +22,7 @@ pub type Framebuffer = Cell<[u8; FRAME_BYTE_SIZE]>;
 pub type Buffer = Cell<[u8]>;
 
 bitflags::bitflags! {
-    #[derive(Clone, Copy)]
+    #[derive(Clone, Copy, Debug)]
     pub struct Buttons: u8 {
         const POWER       = 1 << 0;
         const LEFT_OUTER  = 1 << 1;
