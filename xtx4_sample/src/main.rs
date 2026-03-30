@@ -1,12 +1,12 @@
 #![no_std]
 #![no_main]
-use xtx4_platform::{XtX4, Button, Canvas, STYLE_BLACK, bit_buf};
 use embedded_graphics::{
     mono_font::{ascii::FONT_6X10, MonoTextStyle},
     prelude::*,
-    primitives::{Rectangle, PrimitiveStyleBuilder},
+    primitives::{PrimitiveStyleBuilder, Rectangle},
     text::Text,
 };
+use xtx4_platform::{bit_buf, Button, Canvas, XtX4, STYLE_BLACK};
 
 #[no_mangle]
 fn main() {
@@ -31,9 +31,13 @@ fn main() {
     Text::new("Blue, Purple! asdf!", Point::new(10, 20), text_style)
         .draw(&mut canvas)
         .expect("Invalid draw!");
-    Text::new("Luke, Rodger! blue! Still2!", Point::new(20, 30), text_style)
-        .draw(&mut canvas)
-        .expect("Invalid draw!");
+    Text::new(
+        "Luke, Rodger! blue! Still2!",
+        Point::new(20, 30),
+        text_style,
+    )
+    .draw(&mut canvas)
+    .expect("Invalid draw!");
     platform.display_full_flush(&canvas);
 
     platform.log("Into loop 4!");
@@ -44,7 +48,7 @@ fn main() {
     //platform.display_partial_at(&canvas, Point::new(50,50));
 
     //platform.log("Starting main loop...");
-    
+
     let mut counter = 0;
 
     loop {
@@ -55,13 +59,15 @@ fn main() {
             let full_canvas = platform.canvas();
 
             let [mut top, bottom] = full_canvas.split_vert(&[1, 3]);
-            let [mut bl, mut br] = bottom.split_horz(&[1,1]);
+            let [mut bl, mut br] = bottom.split_horz(&[1, 1]);
 
-            let rect = Rectangle::new(Point::new(40,40), Size::new(100,100)).into_styled(line_style);
+            let rect =
+                Rectangle::new(Point::new(40, 40), Size::new(100, 100)).into_styled(line_style);
             rect.draw(&mut top);
             rect.draw(&mut bl);
             rect.draw(&mut br);
-            platform.display_flush();
+            platform.display_fast();
+            //platform.display_flush();
         }
 
         if input.was_pressed(Button::LeftInner) {

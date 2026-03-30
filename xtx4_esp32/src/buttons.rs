@@ -2,12 +2,10 @@ use esp_hal::analog::adc::{Adc, AdcConfig, Attenuation, AdcPin};
 use esp_hal::gpio::{Pull, Input, AnyPin, InputConfig};
 use esp_hal::analog::adc::AdcChannel;
 use esp_hal::analog::adc::AdcCalBasic;
-use esp_hal::analog::adc::AdcCalCurve;
 use esp_hal::analog::adc::AdcCalScheme;
 use esp_hal::analog::adc::RegisterAccess;
 use esp_hal::peripherals::{ADC1, GPIO1, GPIO2};
 use esp_hal::Blocking;
-use esp_println::println;
 use xtx4_platform_interface::{Buttons};
 
 use crate::sleep::sleep_ms;
@@ -28,7 +26,6 @@ where
     Calibration: AdcCalScheme<ADC>
 {
     let value: u16 = nb::block!(adc.read_oneshot(pin)).unwrap();
-    println!("ADC read: {}", value);
     for i in 0..ranges.len() - 1 {
         if ranges[i] >= value && value > ranges[i+1] {
             return Some(i);
@@ -116,7 +113,6 @@ impl Xtx4Buttons
         let first = self.scan_buttons();
         sleep_ms(DEBOUNCE_MS);
         let second = self.scan_buttons();
-        println!("First: {:?}, Second: {:?}", first, second);
         first & second
     }
 }

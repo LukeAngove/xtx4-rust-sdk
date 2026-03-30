@@ -63,6 +63,11 @@ impl XtX4 {
         self.platform.display_flush(arr);
     }
 
+    /// Push a fast update to the display (or emulated window).
+    pub fn display_fast(&mut self) {
+        self.platform.display_fast(&self.framebuffer);
+    }
+
     /// Push a paritial framebuffer to the display (or emulated window).
     pub fn display_partial_at(&mut self, canvas: &Canvas, top_left: Point) {
         let size = canvas.size();

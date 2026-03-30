@@ -40,6 +40,9 @@ pub trait Platform {
     fn display_flush(&mut self, fb: &Framebuffer);
 
     /// Push a paritial framebuffer to the display (or emulated window).
+    fn display_fast(&mut self, fb: &Framebuffer);
+
+    /// Push a paritial framebuffer to the display (or emulated window).
     fn display_flush_partial(&mut self, fb: &Buffer, x: u16, y: u16, w: u16, h: u16);
 
     /// Read instantaneous button state.

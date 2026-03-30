@@ -97,12 +97,26 @@ impl Platform for Esp32Platform {
         self.log("display_flush");
         let full_screen = self.display.full_display_rect();
         self.display.write_region(Color::BlackWhite, &rotated, &full_screen);
+        // Update red buffer so that it's up to date for future partial refreshes.
+        // Also, if we don't update it, the old image seems to flash back after refresh.
+        // No idea why, refresh_full should be ignoring the red buffer.
         self.display.write_region(Color::Red, &rotated, &full_screen);
         self.display.refresh_full();
     }
 
+    fn display_fast(&mut self, fb: &Framebuffer) {
+        let rotated = rotate_90(fb);
+
+        self.log("display_flush");
+        let full_screen = self.display.full_display_rect();
+        self.display.write_region(Color::BlackWhite, &rotated, &full_screen);
+        self.display.refresh_partial();
+        // Update red buffer so that it's up to date for future partial refreshes.
+        self.display.write_region(Color::Red, &rotated, &full_screen);
+    }
+
     fn display_flush_partial(&mut self, _fb: &Buffer, _x: u16, _y: u16, _w: u16, _h: u16) {
-        todo!()
+        todo!();
     }
 
     fn button_state(&mut self) -> Buttons {

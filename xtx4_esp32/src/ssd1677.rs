@@ -14,6 +14,7 @@ use bitflags::bitflags;
 
 use crate::sleep::sleep_ms;
 
+const CTRL1_NORMAL    : u8 = 0x00;
 const CTRL1_BYPASS_RED: u8 = 0x40;
 
 pub enum SSD1677Command {
@@ -211,7 +212,7 @@ impl SSD1677 {
     pub fn refresh_full(&mut self) {
         self.display_update_ctrl1(CTRL1_BYPASS_RED);
 
-        let mut mode = 0x34u8;
+        let mut mode = 0x34u8; // Full
         if !self.is_screen_on {
             self.is_screen_on = true;
             mode |= 0xC0; // CLOCK_ON + ANALOG_ON
@@ -220,6 +221,21 @@ impl SSD1677 {
         self.display_update_ctrl2(mode);
         self.master_activation();
     }
+
+    pub fn refresh_partial(&mut self) {
+        self.display_update_ctrl1(CTRL1_NORMAL);
+
+        let mut mode = 0x1Cu8; // Partial
+        if !self.is_screen_on {
+            self.is_screen_on = true;
+            mode |= 0xC0; // CLOCK_ON + ANALOG_ON
+        }
+
+        self.display_update_ctrl2(mode);
+        self.master_activation();
+    }
+
+
 
     pub fn write_ram(&mut self, color: Color, buffer: &Buffer) {
         let command = match color {

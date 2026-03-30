@@ -50,7 +50,6 @@ impl Display {
         self.set_ram_area(&full_screen);
 
         self.controller.auto_write_ram(Color::BlackWhite, 0xF7);
-
         self.controller.auto_write_ram(Color::Red, 0xF7);
 
         println!("SSD1677 ready");
@@ -119,6 +118,10 @@ impl Display {
 
     pub fn refresh_full(&mut self) {
         self.controller.refresh_full();
+    }
+
+    pub fn refresh_partial(&mut self) {
+        self.controller.refresh_partial();
     }
 
     /*fn display_window(&mut self, fb: &Framebuffer, x: u16, y: u16, w: u16, h: u16, turn_off_screen: bool) {

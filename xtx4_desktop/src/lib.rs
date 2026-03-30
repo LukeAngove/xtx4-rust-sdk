@@ -165,6 +165,17 @@ impl Platform for DesktopPlatform {
         self.prev_buf = fb.clone();
     }
 
+    fn display_fast(&mut self, fb: &Framebuffer) {
+        let mut pixel_buf: Vec<u32> = vec![0; BUFF_SIZE];
+
+        unpack(&mut pixel_buf, &fb, false);
+        self.sleep_and_render(FLASH_PHASE_MS, &pixel_buf);
+
+        self.prev_buf = fb.clone();
+    }
+
+
+
     fn display_flush_partial(&mut self, fb: &Buffer, x: u16, y: u16, w: u16, h: u16) {
         self.apply_ghost(fb, x, y, w, h);
 
