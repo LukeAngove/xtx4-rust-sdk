@@ -246,6 +246,12 @@ impl SSD1677 {
         }
     }
 
+    pub fn display(&mut self, command1: DisplayUpdate1Commands, command2: DisplayUpdate2Commands) {
+        self.display_update_ctrl1(command1);
+        self.display_update_ctrl2(command2);
+        self.master_activation();
+    }
+
     pub fn display_update_ctrl1(&mut self, command: DisplayUpdate1Commands) {
         self.send_command(SSD1677Command::DisplayUpdateCtrl1);
         self.send_byte(command.bits());
@@ -271,35 +277,24 @@ impl SSD1677 {
                 return;
             }
         }
-        println!("Ready: {}", comment);
     }
 
     pub fn refresh_full(&mut self) {
-        self.display_update_ctrl1(DisplayUpdate1Commands::BypassRed);
-
-        //let mut mode = 0x34u8; // Full
         let mut mode = DisplayUpdate2Commands::LoadI2CTemp | DisplayUpdate2Commands::LoadLUT | DisplayUpdate2Commands::DisplayMode1 | DisplayUpdate2Commands::DisplayEnable;
         if !self.is_screen_on {
             self.is_screen_on = true;
             mode |= DisplayUpdate2Commands::EnableClock | DisplayUpdate2Commands::EnableAnalog;
         }
-
-        self.display_update_ctrl2(mode);
-        self.master_activation();
+        self.display(DisplayUpdate1Commands::BypassRed, mode);
     }
 
     pub fn refresh_partial(&mut self) {
-        self.display_update_ctrl1(DisplayUpdate1Commands::BypassRed);
-
-        //let mut mode = 0x1Cu8; // Partial
         let mut mode = DisplayUpdate2Commands::LoadLUT | DisplayUpdate2Commands::DisplayMode2 | DisplayUpdate2Commands::DisplayEnable;
         if !self.is_screen_on {
             self.is_screen_on = true;
             mode |= DisplayUpdate2Commands::EnableClock | DisplayUpdate2Commands::EnableAnalog;
         }
-
-        self.display_update_ctrl2(mode);
-        self.master_activation();
+        self.display(DisplayUpdate1Commands::BypassRed, mode);
     }
 
     pub fn write_ram(&mut self, color: Color, buffer: &Buffer) {
