@@ -1,13 +1,19 @@
-use crate::canvas::Canvas;
 use crate::input::{InputState, InputStateManager};
 use embedded_graphics::prelude::*;
-use xtx4_platform_interface::{bit_buf, Buffer, Framebuffer, Platform, FRAME_HEIGHT, FRAME_WIDTH};
+use xtx4_platform_interface::{bit_buf, Buffer, Framebuffer, Platform, Rectangle, FRAME_HEIGHT, FRAME_WIDTH};
 
 #[cfg(feature = "desktop")]
 use xtx4_desktop::DesktopPlatform;
 
 #[cfg(feature = "esp32")]
 use xtx4_esp32::Esp32Platform;
+
+#[cfg(feature = "desktop")]
+pub type Canvas<'a> = crate::canvas::Canvas<'a, xtx4_desktop::DesktopTransform>;
+
+#[cfg(feature = "esp32")]
+pub type Canvas<'a> = crate::canvas::Canvas<'a, xtx4_esp32::Esp32Transform>;
+
 
 pub struct XtX4 {
     #[cfg(feature = "desktop")]
@@ -73,10 +79,12 @@ impl XtX4 {
         let size = canvas.size();
         self.platform.display_flush_partial(
             canvas.buf(),
-            top_left.x as u16,
-            top_left.y as u16,
-            size.width as u16,
-            size.height as u16,
+            &Rectangle{
+                x: top_left.x as u16,
+                y: top_left.y as u16,
+                w: size.width as u16,
+                h: size.height as u16,
+            }
         );
     }
 
@@ -86,10 +94,12 @@ impl XtX4 {
         let size = canvas.size();
         self.platform.display_flush_partial(
             canvas.buf(),
-            start.x as u16,
-            start.y as u16,
-            size.width as u16,
-            size.height as u16,
+            &Rectangle{
+                x: start.x as u16,
+                y: start.y as u16,
+                w: size.width as u16,
+                h: size.height as u16,
+            }
         );
     }
 

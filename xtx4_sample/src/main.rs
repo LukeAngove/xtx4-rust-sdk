@@ -32,22 +32,23 @@ fn main() {
         .draw(&mut canvas)
         .expect("Invalid draw!");
     Text::new(
-        "Luke, Rodger! blue! Still2!",
-        Point::new(20, 30),
-        text_style,
-    )
-    .draw(&mut canvas)
-    .expect("Invalid draw!");
+            "Luke, Rodger! blue! Still2!",
+            Point::new(20, 30),
+            text_style,
+        )
+        .draw(&mut canvas)
+        .expect("Invalid draw!");
+
     platform.display_full_flush(&canvas);
 
-    platform.log("Into loop 4!");
-
     //let buf = bit_buf!(0xffu8; (100, 100));
+    let buf = bit_buf!(0xffu8; (80, 80));
+    let mut canvas = Canvas::new(&buf, Size::new(80,80));
     //let mut canvas = Canvas::new(&buf, Size::new(100,100));
-    //Text::new("Hi!", Point::new(0, 10), text_style).draw(&mut canvas).expect("Invalid draw!");
-    //platform.display_partial_at(&canvas, Point::new(50,50));
+    Text::new("Hi!", Point::new(0, 10), text_style).draw(&mut canvas).expect("Invalid draw!");
+    platform.display_partial_at(&canvas, Point::new(40,40));
 
-    //platform.log("Starting main loop...");
+    platform.log("Starting main loop...");
 
     let mut counter = 0;
 
@@ -77,46 +78,46 @@ fn main() {
             platform.display_flush();
         }
 
-        //if input.was_pressed(Button::RightInner) {
-        //    // Partial refresh - draw small black square
-        //    let mut small_fb = bit_buf!(0u8; (100, 100));
-        //    let small_canvas = Canvas::new(&mut small_fb, Size::new(100, 100));
-        //    platform.display_partial_at(&small_canvas, Point::new(200, 200));
-        //}
+        if input.was_pressed(Button::RightInner) {
+            // Partial refresh - draw small black square
+            let mut small_fb = bit_buf!(0u8; (80, 80));
+            let small_canvas = Canvas::new(&mut small_fb, Size::new(80, 80));
+            platform.display_partial_at(&small_canvas, Point::new(200, 200));
+        }
 
-        //if input.was_pressed(Button::RightOuter) {
-        //    // Partial refresh - clear same region
-        //    let mut small_fb = bit_buf!(0xffu8; (100, 100));
-        //    let small_canvas = Canvas::new(&mut small_fb, Size::new(100, 100));
-        //    platform.display_partial_at(&small_canvas, Point::new(250, 250));
-        //}
+        if input.was_pressed(Button::RightOuter) {
+            // Partial refresh - clear same region
+            let mut small_fb = bit_buf!(0xffu8; (80, 80));
+            let small_canvas = Canvas::new(&mut small_fb, Size::new(80, 80));
+            platform.display_partial_at(&small_canvas, Point::new(248, 248));
+        }
 
-        //if input.was_pressed(Button::SideTop) {
-        //    // Accumulate ghosting with rapid partial refreshes
-        //    for i in 0..5i32 {
-        //        let x = 100 + i * 60;
-        //        let mut black = bit_buf!(0u8; (50, 50));
-        //        let black = Canvas::new(&mut black, Size::new(50, 50));
-        //        let mut white = bit_buf!(0xffu8; (50, 50));
-        //        let white = Canvas::new(&mut white, Size::new(50, 50));
-        //        platform.display_partial_at(&black, Point::new(x, 400));
-        //        platform.display_partial_at(&white, Point::new(x, 400));
-        //    }
-        //}
+        if input.was_pressed(Button::SideTop) {
+            // Accumulate ghosting with rapid partial refreshes
+            for i in 0..5i32 {
+                let x = 80 + i * 80;
+                let mut black = bit_buf!(0u8; (40, 40));
+                let black = Canvas::new(&mut black, Size::new(40, 40));
+                let mut white = bit_buf!(0xffu8; (40, 40));
+                let white = Canvas::new(&mut white, Size::new(40, 40));
+                platform.display_partial_at(&black, Point::new(x, 400));
+                platform.display_partial_at(&white, Point::new(x, 400));
+            }
+        }
 
-        //if input.was_pressed(Button::SideBottom) {
-        //    // Overlapping partial refreshes at slightly varying positions
-        //    // to demonstrate ghost accumulation
-        //    for i in 0..5i32 {
-        //        let x = 100 + i * 30; // smaller step so regions overlap
-        //        let mut black = bit_buf!(0; (50, 50));
-        //        let black = Canvas::new(&mut black, Size::new(50, 50));
-        //        let mut white = bit_buf!(0xff; (50, 50));
-        //        let white = Canvas::new(&mut white, Size::new(50, 50));
-        //        platform.display_partial_at(&black, Point::new(x, 400));
-        //        platform.display_partial_at(&white, Point::new(x, 400));
-        //    }
-        //}
+        if input.was_pressed(Button::SideBottom) {
+            // Overlapping partial refreshes at slightly varying positions
+            // to demonstrate ghost accumulation
+            for i in 0..5i32 {
+                let x = 120 + i * 40; // smaller step so regions overlap
+                let mut black = bit_buf!(0; (40, 40));
+                let black = Canvas::new(&mut black, Size::new(40, 40));
+                let mut white = bit_buf!(0xff; (40, 40));
+                let white = Canvas::new(&mut white, Size::new(40, 40));
+                platform.display_partial_at(&black, Point::new(x, 400));
+                platform.display_partial_at(&white, Point::new(x, 400));
+            }
+        }
 
         //if input.is_pressed(Button::Power) {
         //    platform.power_off();

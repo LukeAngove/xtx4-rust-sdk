@@ -2,9 +2,8 @@ use esp_println::println;
 
 use core::cell::Cell;
 
-use xtx4_platform_interface::Buffer;
+use xtx4_platform_interface::{Buffer, Rectangle};
 use crate::ssd1677::{SSD1677, Color, DriverOutputControlMode, DataEntryMode, Range};
-use crate::rectangle::Rectangle;
 
 pub struct Display {
     controller: SSD1677,
@@ -38,6 +37,8 @@ impl Display {
 
         self.controller.set_temp_sensor(0x80); // internal temp sensor
 
+        // Level 1 booster soft start. Level 2 is the only other supported,
+        // and that is only 0x80 as the last byte.
         let command = Cell::new([0xAEu8, 0xC7, 0xC3, 0xC0, 0x40]);
         self.controller.booster_soft_start(&command);
 
@@ -109,9 +110,9 @@ impl Display {
             panic!("Incorrect size for region write! Expected: {}, got: {} ({},{}) at ({}, {})", buffer.as_slice_of_cells().len(), bytes_to_write, w, h, x, y);
         }
 
-        if self.ram_region != Some(*rect) {
+        //if self.ram_region != Some(*rect) {
             self.set_ram_area(rect);
-        }
+        //}
 
         self.controller.write_ram(color, buffer);
     }

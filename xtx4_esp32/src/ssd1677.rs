@@ -14,31 +14,96 @@ use bitflags::bitflags;
 
 use crate::sleep::sleep_ms;
 
-const CTRL1_NORMAL    : u8 = 0x00;
-const CTRL1_BYPASS_RED: u8 = 0x40;
+bitflags! {
+    #[derive(Clone, Copy)]
+    pub struct DisplayUpdate1Commands : u8 {
+        const BypassBw  = 0x04;
+        const InvertBw  = 0x08;
+        const BypassRed = 0x40;
+    }
+}
+
+bitflags! {
+    #[derive(Clone, Copy)]
+    pub struct DisplayUpdate2Commands : u8 {
+        const DisableClock  = 0x01;
+        const DisableAnalog = 0x02;
+        const DisplayEnable = 0x04;
+        const DisplayMode1  = 0x00;
+        const DisplayMode2  = 0x08;
+        const LoadLUT       = 0x10;
+        const LoadI2CTemp   = 0x20;
+        const EnableAnalog  = 0x40;
+        const EnableClock   = 0x80;
+    }
+}
 
 pub enum SSD1677Command {
-    DriverOutputControl = 0x01,
-    BoosterSoftStart    = 0x0C,
-    DataEntryMode       = 0x11,
-    SoftReset           = 0x12,
-    TempSensorControl   = 0x18,
-    BorderWaveform      = 0x3C,
+    DriverOutputControl             = 0x01,
+    GateDrivingVoltageControl       = 0x03,
+    SourceDrivingVoltageControl     = 0x04,
+    InitialCodeSettingOtpProgram    = 0x08,
+    WriteRegisterInitialCodeSetting = 0x09,
+    ReadRegisterInitialCodeSetting  = 0x0A,
+    BoosterSoftStart                = 0x0C,
+    DeepSleepMode                   = 0x10,
+    DataEntryMode                   = 0x11,
+    SoftReset                       = 0x12,
+    HvReadyDetection                = 0x14,
+    VciDetection                    = 0x15,
 
-    SetRamXRange        = 0x44,
-    SetRamYRange        = 0x45,
-    SetRamXCounter      = 0x4E,
-    SetRamYCounter      = 0x4F,
+    TempSensorControl               = 0x18,
+    TempSensorControlWrite          = 0x1A,
+    TempSensorControlRead           = 0x1B,
+    TemSensorControlWriteExternal   = 0x1C,
 
-    MasterActivation    = 0x20,
-    DisplayUpdateCtrl1  = 0x21,
-    DisplayUpdateCtrl2  = 0x22,
+    MasterActivation                = 0x20,
+    DisplayUpdateCtrl1              = 0x21,
+    DisplayUpdateCtrl2              = 0x22,
 
-    WriteRamBw          = 0x24,
-    WriteRamRed         = 0x26,
+    WriteRamBw                      = 0x24,
+    WriteRamDithering               = 0x25, // Use 0x4D for settings
+    WriteRamRed                     = 0x26,
 
-    AutoWriteBwRam      = 0x46,
-    AutoWriteRedRam     = 0x47,
+    ReadRam                         = 0x27, // Use register 0x41 to select red or bw.
+
+    VComSense                       = 0x28,
+    VComSenseDuration               = 0x29,
+    ProgramVComOtp                  = 0x2A,
+    VComControlWrite                = 0x2B,
+    VComRegisterWrite               = 0x2C,
+
+    OtpDisplayRead                  = 0x2D,
+    UserIdRead                      = 0x2E,
+    StatusBitRead                   = 0x2F,
+
+    WriteWaveformSettingOtp         = 0x30,
+    LoadWaveformSettingOtp          = 0x31,
+
+    WriteLutRegister                = 0x32,
+
+    CrcCalculate                    = 0x34,
+    CrcStatus                       = 0x35,
+
+    WriteOtpSelection               = 0x36,
+    DisplayOptionRegisterWrite      = 0x37,
+    UserIdWrite                     = 0x38,
+    WriteOptMode                    = 0x39,
+
+    BorderWaveform                  = 0x3C,
+
+    ReadRamOption                   = 0x41, // 0 = 0x24, 1 = 0x26
+
+    SetRamXRange                    = 0x44,
+    SetRamYRange                    = 0x45,
+
+    AutoWriteBwRam                  = 0x46,
+    AutoWriteRedRam                 = 0x47,
+
+    DitheringEngine                 = 0x4D, // TODO See datasheet.
+
+    SetRamXCounter                  = 0x4E,
+    SetRamYCounter                  = 0x4F,
 }
 
 
@@ -181,14 +246,14 @@ impl SSD1677 {
         }
     }
 
-    pub fn display_update_ctrl1(&mut self, command: u8) {
+    pub fn display_update_ctrl1(&mut self, command: DisplayUpdate1Commands) {
         self.send_command(SSD1677Command::DisplayUpdateCtrl1);
-        self.send_byte(command);
+        self.send_byte(command.bits());
     }
 
-    pub fn display_update_ctrl2(&mut self, command: u8) {
+    pub fn display_update_ctrl2(&mut self, command: DisplayUpdate2Commands) {
         self.send_command(SSD1677Command::DisplayUpdateCtrl2);
-        self.send_byte(command);
+        self.send_byte(command.bits());
     }
 
     pub fn master_activation(&mut self) {
@@ -210,12 +275,13 @@ impl SSD1677 {
     }
 
     pub fn refresh_full(&mut self) {
-        self.display_update_ctrl1(CTRL1_BYPASS_RED);
+        self.display_update_ctrl1(DisplayUpdate1Commands::BypassRed);
 
-        let mut mode = 0x34u8; // Full
+        //let mut mode = 0x34u8; // Full
+        let mut mode = DisplayUpdate2Commands::LoadI2CTemp | DisplayUpdate2Commands::LoadLUT | DisplayUpdate2Commands::DisplayMode1 | DisplayUpdate2Commands::DisplayEnable;
         if !self.is_screen_on {
             self.is_screen_on = true;
-            mode |= 0xC0; // CLOCK_ON + ANALOG_ON
+            mode |= DisplayUpdate2Commands::EnableClock | DisplayUpdate2Commands::EnableAnalog;
         }
 
         self.display_update_ctrl2(mode);
@@ -223,19 +289,18 @@ impl SSD1677 {
     }
 
     pub fn refresh_partial(&mut self) {
-        self.display_update_ctrl1(CTRL1_NORMAL);
+        self.display_update_ctrl1(DisplayUpdate1Commands::BypassRed);
 
-        let mut mode = 0x1Cu8; // Partial
+        //let mut mode = 0x1Cu8; // Partial
+        let mut mode = DisplayUpdate2Commands::LoadLUT | DisplayUpdate2Commands::DisplayMode2 | DisplayUpdate2Commands::DisplayEnable;
         if !self.is_screen_on {
             self.is_screen_on = true;
-            mode |= 0xC0; // CLOCK_ON + ANALOG_ON
+            mode |= DisplayUpdate2Commands::EnableClock | DisplayUpdate2Commands::EnableAnalog;
         }
 
         self.display_update_ctrl2(mode);
         self.master_activation();
     }
-
-
 
     pub fn write_ram(&mut self, color: Color, buffer: &Buffer) {
         let command = match color {

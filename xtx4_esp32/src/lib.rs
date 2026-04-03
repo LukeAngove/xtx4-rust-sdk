@@ -18,12 +18,11 @@ mod sleep;
 mod ssd1677;
 mod display;
 mod buttons;
-mod rectangle;
 
 use esp_backtrace as _;
 
 use esp_println::println;
-use xtx4_platform_interface::{Buttons, Framebuffer, Buffer, Platform, FRAME_WIDTH, FRAME_HEIGHT};
+use xtx4_platform_interface::{Buttons, Framebuffer, Buffer, Platform, FRAME_WIDTH, FRAME_HEIGHT, Rectangle, DrawTransform};
 
 use crate::ssd1677::{SSD1677, SSD1677Builder, Color};
 use crate::display::Display;
@@ -34,30 +33,23 @@ use crate::buttons::Xtx4Buttons;
 const DISPLAY_WIDTH: u16  = FRAME_HEIGHT as u16;
 const DISPLAY_HEIGHT: u16 = FRAME_WIDTH as u16;
 
-fn rotate_90(fb: &Framebuffer) -> Framebuffer {
-    // Input:  landscape 800w x 480h, row-major, 1bpp
-    // Output: portrait  480w x 800h, row-major, 1bpp
-    let out = Framebuffer::new([0; (DISPLAY_WIDTH as usize * DISPLAY_HEIGHT as usize + 7) / 8]);
-    let fb = fb.as_array_of_cells();
-    let out_b = out.as_array_of_cells();
-    for y in 0..FRAME_HEIGHT as usize {
-        for x in 0..FRAME_WIDTH as usize {
+pub struct Esp32Transform;
 
-            let src_byte = y * (FRAME_WIDTH / 8) + x / 8;
-            let src_bit = 7 - (x % 8);
-            let is_white = (fb[src_byte].get() >> src_bit) & 1;
+impl DrawTransform for Esp32Transform {
+    fn stride(_full_width: u16, full_height: u16) -> u16 {
+        full_height
+    }
 
-            let dst_x = y;
-            let dst_y = (DISPLAY_HEIGHT as usize - 1) - x;
-            let dst_byte = dst_y * (DISPLAY_WIDTH as usize / 8) + dst_x / 8;
-            let dst_bit = 7 - (dst_x % 8);
+    fn apply(x: u16, y: u16, width: u16, height: u16) -> Option<(u16, u16)> {
+        let (p_width, p_height) = (height, width);
+        let (p_x,p_y) = (y, width - 1 - x);
 
-            if is_white == 1 {
-                out_b[dst_byte].set(out_b[dst_byte].get() | 1 << dst_bit);
-            }
+        if p_x < p_width && p_y < p_height {
+            Some((p_x,p_y))
+        } else {
+            None
         }
     }
-    out
 }
 
 pub struct Esp32Platform {
@@ -91,32 +83,43 @@ impl Esp32Platform {
 
 impl Platform for Esp32Platform {
     fn display_flush(&mut self, fb: &Framebuffer) {
-
-        let rotated = rotate_90(fb);
-
         self.log("display_flush");
         let full_screen = self.display.full_display_rect();
-        self.display.write_region(Color::BlackWhite, &rotated, &full_screen);
+
+        self.display.write_region(Color::BlackWhite, fb, &full_screen);
         // Update red buffer so that it's up to date for future partial refreshes.
         // Also, if we don't update it, the old image seems to flash back after refresh.
         // No idea why, refresh_full should be ignoring the red buffer.
-        self.display.write_region(Color::Red, &rotated, &full_screen);
+        self.display.write_region(Color::Red, fb, &full_screen);
         self.display.refresh_full();
     }
 
     fn display_fast(&mut self, fb: &Framebuffer) {
-        let rotated = rotate_90(fb);
-
-        self.log("display_flush");
+        self.log("display_fast");
         let full_screen = self.display.full_display_rect();
-        self.display.write_region(Color::BlackWhite, &rotated, &full_screen);
+
+        self.display.write_region(Color::BlackWhite, fb, &full_screen);
         self.display.refresh_partial();
         // Update red buffer so that it's up to date for future partial refreshes.
-        self.display.write_region(Color::Red, &rotated, &full_screen);
+        self.display.write_region(Color::Red, fb, &full_screen);
     }
 
-    fn display_flush_partial(&mut self, _fb: &Buffer, _x: u16, _y: u16, _w: u16, _h: u16) {
-        todo!();
+    fn display_flush_partial(&mut self, fb: &Buffer, frame: &Rectangle) {
+        self.log("display_partial");
+        let Rectangle { x, y, w, h } = *frame;
+
+        // Need to transform for display rotation.
+        let frame = &Rectangle {
+            x: y,
+            y: FRAME_WIDTH as u16 - x - w,
+            w: h,
+            h: w,
+        };
+
+        self.display.write_region(Color::BlackWhite, fb, frame);
+        self.display.write_region(Color::Red, fb, frame);
+        self.display.refresh_partial();
+        // Update red buffer so that it's up to date for future partial refreshes.
     }
 
     fn button_state(&mut self) -> Buttons {

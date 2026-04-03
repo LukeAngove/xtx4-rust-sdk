@@ -11,7 +11,7 @@
 //
 
 use minifb::{Key, Window, WindowOptions};
-use xtx4_platform_interface::{Buttons, Framebuffer, Buffer, Platform, bit_buf};
+use xtx4_platform_interface::{Buttons, Framebuffer, Buffer, Platform, bit_buf, DrawTransform, Rectangle};
 
 // Use width and height as the viewer sees them.
 // This is different to the hardware, which is 90 degrees off!
@@ -55,6 +55,22 @@ fn fb_bit(fb: &Framebuffer, px: usize) -> bool {
     let byte = px / 8;
     let bit = px % 8;
     (cells[byte].get() & (0x80 >> bit)) != 0
+}
+
+pub struct DesktopTransform;
+
+impl DrawTransform for DesktopTransform {
+    fn stride(full_width: u16, _full_height: u16) -> u16 {
+        full_width
+    }
+
+    fn apply(x: u16, y: u16, width: u16, height: u16) -> Option<(u16, u16)> {
+        if x < width && y < height {
+            Some((x,y))
+        } else {
+            None
+        }
+    }
 }
 
 pub struct DesktopPlatform {
@@ -176,7 +192,8 @@ impl Platform for DesktopPlatform {
 
 
 
-    fn display_flush_partial(&mut self, fb: &Buffer, x: u16, y: u16, w: u16, h: u16) {
+    fn display_flush_partial(&mut self, fb: &Buffer, rect: &Rectangle) {
+        let Rectangle{x, y, w, h} = *rect;
         self.apply_ghost(fb, x, y, w, h);
 
         let fb_cells = fb.as_slice_of_cells();

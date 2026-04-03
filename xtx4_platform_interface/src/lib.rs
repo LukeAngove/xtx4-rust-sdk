@@ -21,6 +21,14 @@ macro_rules! bit_buf {
 pub type Framebuffer = Cell<[u8; FRAME_BYTE_SIZE]>;
 pub type Buffer = Cell<[u8]>;
 
+#[derive(PartialEq, Eq, Copy, Clone)]
+pub struct Rectangle {
+    pub x: u16,
+    pub y: u16,
+    pub w: u16,
+    pub h: u16,
+}
+
 bitflags::bitflags! {
     #[derive(Clone, Copy, Debug)]
     pub struct Buttons: u8 {
@@ -34,6 +42,13 @@ bitflags::bitflags! {
     }
 }
 
+/// Transforms from user buffer space to target
+/// buffers space. Mostly used for rotation.
+pub trait DrawTransform {
+    fn stride(full_width: u16, full_height: u16) -> u16;
+    fn apply(x: u16, y: u16, width: u16, height: u16) -> Option<(u16, u16)>;
+}
+
 pub trait Platform {
     /// Push a full framebuffer to the display (or emulated window).
     /// Framebuffer is moved.
@@ -43,7 +58,7 @@ pub trait Platform {
     fn display_fast(&mut self, fb: &Framebuffer);
 
     /// Push a paritial framebuffer to the display (or emulated window).
-    fn display_flush_partial(&mut self, fb: &Buffer, x: u16, y: u16, w: u16, h: u16);
+    fn display_flush_partial(&mut self, fb: &Buffer, frame: &Rectangle);
 
     /// Read instantaneous button state.
     fn button_state(&mut self) -> Buttons;
