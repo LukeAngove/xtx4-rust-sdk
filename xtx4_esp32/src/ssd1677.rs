@@ -332,8 +332,7 @@ impl SSD1677 {
 
     pub fn write_ram(&mut self, color: Color, buffer: &Buffer) {
         let command = match color {
-            //Color::Red => SSD1677Command::WriteRamRed,
-            Color::Red => SSD1677Command::WriteRamBw,
+            Color::Red => SSD1677Command::WriteRamRed,
             Color::BlackWhite => SSD1677Command::WriteRamBw,
         };
 

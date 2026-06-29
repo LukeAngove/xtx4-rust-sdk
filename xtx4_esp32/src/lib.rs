@@ -121,9 +121,9 @@ impl Platform for Esp32Platform {
         };
 
         self.display.write_region(Color::BlackWhite, fb, frame);
-        // Update red buffer so that it's up to date for future partial refreshes.
         self.display.refresh_partial();
-        //self.display.write_region(Color::Red, fb, frame);
+        // Update red buffer so that it's up to date for future partial refreshes.
+        self.display.write_region(Color::Red, fb, frame);
     }
 
     fn button_state(&mut self) -> Buttons {
