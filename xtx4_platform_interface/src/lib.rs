@@ -69,6 +69,12 @@ pub trait Platform {
     /// Sleep for ms milliseconds, keeping the platform responsive.
     fn sleep_ms(&mut self, ms: u32);
 
+    /// Lite sleep mode for device.
+    fn low_power_enable(&mut self);
+
+    /// Leave lite sleep mode for device.
+    fn low_power_disable(&mut self);
+
     /// Turn off (or close) the device (or app)
     fn power_off(&mut self);
 

@@ -50,10 +50,17 @@ fn main() {
 
     platform.log("Starting main loop...");
 
-    let mut counter = 0;
+    let mut idle_counter = 0;
+    const SLEEP_COUNT: usize = 200;
 
     loop {
         let input = platform.update_input();
+
+        if input.was_any_pressed() {
+            idle_counter = 0;
+        } else {
+            idle_counter += 1;
+        }
 
         if input.was_pressed(Button::LeftOuter) {
             // Full refresh - draw black rectangle top left
@@ -63,12 +70,13 @@ fn main() {
             let [mut bl, mut br] = bottom.split_horz(&[1, 1]);
 
             let rect =
-                Rectangle::new(Point::new(40, 40), Size::new(100, 100)).into_styled(line_style);
+                Rectangle::new(Point::new(380, 0), Size::new(100, 100)).into_styled(line_style);
             rect.draw(&mut top);
+            let rect =
+                Rectangle::new(Point::new(0, 0), Size::new(100, 100)).into_styled(line_style);
             rect.draw(&mut bl);
             rect.draw(&mut br);
             platform.display_fast();
-            //platform.display_flush();
         }
 
         if input.was_pressed(Button::LeftInner) {
@@ -123,11 +131,10 @@ fn main() {
         //    platform.power_off();
         //}
 
-        if counter % 30 == 0 {
-            platform.log("Loop!");
-            counter = 0;
+        if idle_counter > SLEEP_COUNT {
+            platform.low_power_activate();
         }
-        counter += 1;
+
         platform.sleep_ms(10);
     }
 }

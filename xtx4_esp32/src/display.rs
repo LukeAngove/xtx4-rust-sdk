@@ -58,9 +58,9 @@ impl Display {
 
     pub fn set_ram_area(&mut self, region: &Rectangle) {
         // Don't bother setting region if it's already set.
-        if self.ram_region == Some(*region) {
-            return;
-        }
+        //if self.ram_region == Some(*region) {
+        //    return;
+        //}
 
         // Set to 'None' during processing.
         // We should never race, but it's better practice
@@ -102,6 +102,11 @@ impl Display {
         self.controller.set_ram_counter(Range::Y, y_ends.0);
     }
 
+    pub fn read_buffer(&mut self, color: Color) {
+        self.set_ram_area(&self.full_display_rect());
+        self.controller.read_ram(color);
+    }
+
     pub fn write_region(&mut self, color: Color, buffer: &Buffer, rect: &Rectangle) {
         let Rectangle{x, y, w, h} = rect;
         let bytes_to_write = (*w as usize)*(*h as usize)/8;
@@ -125,73 +130,7 @@ impl Display {
         self.controller.refresh_partial();
     }
 
-    /*fn display_window(&mut self, fb: &Framebuffer, x: u16, y: u16, w: u16, h: u16, turn_off_screen: bool) {
-      println!("Displaying window at ({},{}) size ({}x{})", x, y, w, h);
-
-      // Validate bounds
-      if (x + w > DISPLAY_WIDTH) || (y + h > DISPLAY_HEIGHT) {
-        println!("ERROR: Window bounds exceed display dimensions!");
-        return;
-      }
-
-      // Validate byte alignment
-      if (x % 8 != 0) || (w % 8 != 0) {
-        println!("ERROR: Window x and width must be byte-aligned (multiples of 8)!");
-        return;
-      }
-
-      // displayWindow is not supported while the rest of the screen has grayscale content, revert it
-      //if (inGrayscaleMode) {
-      //  inGrayscaleMode = false;
-      //  grayscaleRevert();
-      //}
-
-      // Calculate window buffer size
-      let window_width_bytes = w / 8;
-      let window_buffer_size = window_width_bytes * h;
-
-      println!("Window buffer size: {} bytes ({} x {} pixels)", window_buffer_size, w, h);
-
-      // Allocate temporary buffer on stack
-      let window_buffer = Cell::new([0u8; window_buffer_size]);
-
-      // Extract window region from frame buffer
-      for row in 0..h {
-        let src_y = y + row;
-        let src_offset = src_y * (DISPLAY_WIDTH / 8) + (x / 8);
-        let dst_offset = row * window_width_bytes;
-        //memcpy(window_buffer[dstOffset], frameBuffer[srcOffset], window_width_bytes);
-      }
-
-      let window_rect = Rectangle{x, y, w, h};
-      self.write_region(Color::BlackWhite, window_buffer, &window_rect);
-
-      let single_buffer_mode = false;
-
-      if !single_buffer_mode {
-          // Dual buffer: Extract window from frameBufferActive (previous frame)
-          let previous_window_buffer = Cell::new([0u8; window_buffer_size]);
-
-          for row in 0..h {
-            let src_y = y + row;
-            let src_offset = src_y * (DISPLAY_WIDTH / 8) + (x / 8);
-            let dst_offset = row * window_width_bytes;
- 
-            //memcpy(previous_window_buffer[dstOffset], frame_buffer_active[srcOffset], window_width_bytes);
-          }
-
-          self.write_region(Color::Red, previous_window_buffer, &window_rect);
-      }
-
-      // Perform fast refresh
-      //refreshDisplay(FAST_REFRESH, turnOffScreen);
-
-      if single_buffer_mode {
-          // Post-refresh: Sync RED RAM with current window (for next fast refresh)
-          self.write_region(Color::Red, window_buffer, &window_rect);
-      }
-
-      println!("Window display complete");
-    }*/
-
+    pub fn sleep(&mut self) {
+        self.controller.screen_sleep();
+    }
 }

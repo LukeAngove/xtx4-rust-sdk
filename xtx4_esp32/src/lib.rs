@@ -64,6 +64,7 @@ impl Esp32Platform {
         let builder = SSD1677Builder {
             spi: peripherals.SPI2.into(),
             sck: peripherals.GPIO8.into(),
+            miso: peripherals.GPIO7.into(),
             mosi: peripherals.GPIO10.into(),
             cs: peripherals.GPIO21.into(),
             dc: peripherals.GPIO4.into(),
@@ -87,11 +88,12 @@ impl Platform for Esp32Platform {
         let full_screen = self.display.full_display_rect();
 
         self.display.write_region(Color::BlackWhite, fb, &full_screen);
-        // Update red buffer so that it's up to date for future partial refreshes.
-        // Also, if we don't update it, the old image seems to flash back after refresh.
-        // No idea why, refresh_full should be ignoring the red buffer.
         self.display.write_region(Color::Red, fb, &full_screen);
+        self.display.read_buffer(Color::BlackWhite);
+        self.display.read_buffer(Color::Red);
         self.display.refresh_full();
+        // Writing afterward only seems to be safe (no write to screen) if we disable the clock
+        // and analog in refresh.
     }
 
     fn display_fast(&mut self, fb: &Framebuffer) {
@@ -99,6 +101,8 @@ impl Platform for Esp32Platform {
         let full_screen = self.display.full_display_rect();
 
         self.display.write_region(Color::BlackWhite, fb, &full_screen);
+        self.display.read_buffer(Color::BlackWhite);
+        self.display.read_buffer(Color::Red);
         self.display.refresh_partial();
         // Update red buffer so that it's up to date for future partial refreshes.
         self.display.write_region(Color::Red, fb, &full_screen);
@@ -117,9 +121,9 @@ impl Platform for Esp32Platform {
         };
 
         self.display.write_region(Color::BlackWhite, fb, frame);
-        self.display.write_region(Color::Red, fb, frame);
-        self.display.refresh_partial();
         // Update red buffer so that it's up to date for future partial refreshes.
+        self.display.refresh_partial();
+        //self.display.write_region(Color::Red, fb, frame);
     }
 
     fn button_state(&mut self) -> Buttons {
@@ -136,6 +140,14 @@ impl Platform for Esp32Platform {
 
     fn log(&mut self, msg: &str) {
         println!("{}", msg);
+    }
+
+    fn low_power_enable(&mut self) {
+        self.display.sleep();
+    }
+
+    fn low_power_disable(&mut self) {
+        // No commands needed.
     }
 
     fn power_off(&mut self) {

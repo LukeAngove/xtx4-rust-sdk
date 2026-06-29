@@ -8,7 +8,7 @@ use esp_hal::{
 };
 use esp_hal::gpio::InputConfig;
 use esp_hal::gpio::OutputConfig;
-use esp_println::println;
+use esp_println::{println, print};
 use xtx4_platform_interface::{Buffer};
 use bitflags::bitflags;
 
@@ -17,9 +17,11 @@ use crate::sleep::sleep_ms;
 bitflags! {
     #[derive(Clone, Copy)]
     pub struct DisplayUpdate1Commands : u8 {
+        const Normal = 0;
         const BypassBw  = 0x04;
         const InvertBw  = 0x08;
         const BypassRed = 0x40;
+        const InvertRed = 0x80;
     }
 }
 
@@ -38,6 +40,7 @@ bitflags! {
     }
 }
 
+#[derive(Debug)]
 pub enum SSD1677Command {
     DriverOutputControl             = 0x01,
     GateDrivingVoltageControl       = 0x03,
@@ -113,6 +116,7 @@ pub enum DataEntryMode {
     Decrease,
 }
 
+#[derive(Debug)]
 pub enum Color {
     Red,
     BlackWhite,
@@ -136,6 +140,7 @@ pub struct SSD1677Builder {
     pub spi: AnySpi<'static>, 
     pub sck: AnyPin<'static>,
     pub mosi: AnyPin<'static>,
+    pub miso: AnyPin<'static>,
     pub cs: AnyPin<'static>,
     pub dc: AnyPin<'static>,
     pub rst: AnyPin<'static>,
@@ -165,7 +170,8 @@ impl SSD1677 {
         let spi = Spi::new(peripherals.spi, config)
             .expect("SPI failed to initialise")
             .with_sck(peripherals.sck)
-            .with_mosi(peripherals.mosi);
+            .with_mosi(peripherals.mosi)
+            .with_miso(peripherals.miso);
 
         let out_config = OutputConfig::default();
         let cs   = Output::new(peripherals.cs, Level::High, out_config);
@@ -252,6 +258,11 @@ impl SSD1677 {
         self.master_activation();
     }
 
+    pub fn screen_sleep(&mut self) {
+        //self.display(DisplayUpdate1Commands::Normal, DisplayUpdate2Commands::DisableClock | DisplayUpdate2Commands::DisableAnalog);
+        //self.is_screen_on = false;
+    }
+
     pub fn display_update_ctrl1(&mut self, command: DisplayUpdate1Commands) {
         self.send_command(SSD1677Command::DisplayUpdateCtrl1);
         self.send_byte(command.bits());
@@ -280,31 +291,63 @@ impl SSD1677 {
     }
 
     pub fn refresh_full(&mut self) {
-        let mut mode = DisplayUpdate2Commands::LoadI2CTemp | DisplayUpdate2Commands::LoadLUT | DisplayUpdate2Commands::DisplayMode1 | DisplayUpdate2Commands::DisplayEnable;
-        if !self.is_screen_on {
-            self.is_screen_on = true;
-            mode |= DisplayUpdate2Commands::EnableClock | DisplayUpdate2Commands::EnableAnalog;
-        }
+        //let mut mode = DisplayUpdate2Commands::LoadI2CTemp | DisplayUpdate2Commands::LoadLUT | DisplayUpdate2Commands::DisplayMode1 | DisplayUpdate2Commands::DisplayEnable;
+        //if !self.is_screen_on {
+        //    self.is_screen_on = true;
+        //    mode |= DisplayUpdate2Commands::EnableClock | DisplayUpdate2Commands::EnableAnalog;
+        //    println!("Screen turned on");
+        //}
+        let mut mode = 
+            DisplayUpdate2Commands::EnableClock |
+            DisplayUpdate2Commands::EnableAnalog |
+            DisplayUpdate2Commands::LoadI2CTemp |
+            DisplayUpdate2Commands::LoadLUT |
+            DisplayUpdate2Commands::DisplayMode1 | // Mode 1 is 'full' update
+            DisplayUpdate2Commands::DisplayEnable |
+            DisplayUpdate2Commands::DisableClock |
+            DisplayUpdate2Commands::DisableAnalog;
+        //self.display(DisplayUpdate1Commands::Normal, mode);
         self.display(DisplayUpdate1Commands::BypassRed, mode);
     }
 
     pub fn refresh_partial(&mut self) {
-        let mut mode = DisplayUpdate2Commands::LoadLUT | DisplayUpdate2Commands::DisplayMode2 | DisplayUpdate2Commands::DisplayEnable;
-        if !self.is_screen_on {
-            self.is_screen_on = true;
-            mode |= DisplayUpdate2Commands::EnableClock | DisplayUpdate2Commands::EnableAnalog;
-        }
-        self.display(DisplayUpdate1Commands::BypassRed, mode);
+        //let mut mode = DisplayUpdate2Commands::LoadLUT | DisplayUpdate2Commands::DisplayMode2 | DisplayUpdate2Commands::DisplayEnable;
+        //if !self.is_screen_on {
+        //    self.is_screen_on = true;
+        //    mode |= DisplayUpdate2Commands::EnableClock | DisplayUpdate2Commands::EnableAnalog;
+        //    println!("Screen turned on");
+        //}
+        let mut mode =
+            DisplayUpdate2Commands::EnableClock |
+            DisplayUpdate2Commands::EnableAnalog |
+            DisplayUpdate2Commands::LoadLUT |
+            DisplayUpdate2Commands::DisplayMode2 | // Mode 2 is partial update
+            DisplayUpdate2Commands::DisplayEnable |
+            DisplayUpdate2Commands::DisableClock |
+            DisplayUpdate2Commands::DisableAnalog;
+            
+        self.display(DisplayUpdate1Commands::Normal, mode);
+        //self.display(DisplayUpdate1Commands::BypassRed, mode);
     }
 
     pub fn write_ram(&mut self, color: Color, buffer: &Buffer) {
         let command = match color {
-            Color::Red => SSD1677Command::WriteRamRed,
+            //Color::Red => SSD1677Command::WriteRamRed,
+            Color::Red => SSD1677Command::WriteRamBw,
             Color::BlackWhite => SSD1677Command::WriteRamBw,
         };
 
+        let cells = buffer.as_slice_of_cells();
+        print!("Buffer data: ");
+        for i in 0..16 {
+            print!("{:02X}", cells[i].get());
+        }
+        println!("");
+
+
         self.send_command(command);
         self.send_data(buffer);
+        self.wait_while_busy("WriteRam");
     }
 
     pub fn set_ram_range(&mut self, range: Range, start: u16, end: u16) {
@@ -336,6 +379,26 @@ impl SSD1677 {
         self.send_byte(o_upper);
     }
 
+    pub fn read_ram(&mut self, color: Color) {
+        self.send_command(SSD1677Command::ReadRamOption);
+        match color {
+            Color::BlackWhite => self.send_byte(0x0),
+            Color::Red => self.send_byte(0x1),
+        }
+
+        let mut buffer = ::core::cell::Cell::<[u8; (480*800/8) + 1]>::new([0u8; (480*800/8) + 1]);
+        self.send_command(SSD1677Command::ReadRam);
+        self.recv_data(&mut buffer);
+        {
+            print!("Returned data ({:?}): ", color);
+            let data = buffer.as_array_of_cells();
+            for i in 0..16 {
+                print!("{:02X}", data[i].get());
+            }
+            println!("");
+        }
+    }
+
     pub fn set_data_mode(&mut self, x: DataEntryMode, y: DataEntryMode) {
         let x = if x == DataEntryMode::Increase { 0x1 } else { 0x0 };
         let y = if y == DataEntryMode::Increase { 0x2 } else { 0x0 };
@@ -346,6 +409,7 @@ impl SSD1677 {
     }
 
     fn send_command(&mut self, cmd: SSD1677Command) {
+        println!("Command: {:?}", cmd);
         self.dc.set_low();
         self.cs.set_low();
         self.spi.write(&[cmd as u8]).unwrap();
@@ -363,10 +427,27 @@ impl SSD1677 {
         self.dc.set_high();
         self.cs.set_low();
 
+        let len = data.as_slice_of_cells().len();
         // SAFETY: read-only, fixed lifetime use
         let data: &[u8] = unsafe { &*(data.as_ptr()) };
+        if len > 16 {
+            print!("Pointer buffer data: ");
+            for i in 0..16 {
+                print!("{:02X}", data[i]);
+            }
+            println!("");
+        }
+
         self.spi.write(data).unwrap();
 
+        self.cs.set_high();
+    }
+
+    fn recv_data(&mut self, data: &mut Buffer) {
+        self.dc.set_high();
+        self.cs.set_low();
+        let data: &mut [u8] = unsafe { &mut *(data.as_ptr()) };
+        self.spi.read(data);
         self.cs.set_high();
     }
 }

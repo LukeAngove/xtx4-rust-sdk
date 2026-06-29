@@ -113,6 +113,10 @@ impl XtX4 {
         self.platform.sleep_ms(ms);
     }
 
+    pub fn low_power_activate(&mut self) {
+        self.platform.low_power_enable();
+    }
+
     /// Turn off (or close) the device (or app)
     pub fn power_off(&mut self) {
         self.platform.power_off();
