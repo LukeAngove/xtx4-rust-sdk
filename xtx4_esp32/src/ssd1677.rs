@@ -259,8 +259,11 @@ impl SSD1677 {
     }
 
     pub fn screen_sleep(&mut self) {
-        //self.display(DisplayUpdate1Commands::Normal, DisplayUpdate2Commands::DisableClock | DisplayUpdate2Commands::DisableAnalog);
-        //self.is_screen_on = false;
+        self.display(
+            DisplayUpdate1Commands::Normal,
+            DisplayUpdate2Commands::DisableClock | DisplayUpdate2Commands::DisableAnalog,
+        );
+        self.is_screen_on = false;
     }
 
     pub fn display_update_ctrl1(&mut self, command: DisplayUpdate1Commands) {
@@ -385,14 +388,16 @@ impl SSD1677 {
             Color::Red => self.send_byte(0x1),
         }
 
-        let mut buffer = ::core::cell::Cell::<[u8; (480*800/8) + 1]>::new([0u8; (480*800/8) + 1]);
+        // Read only a small debug sample (16 bytes + 1 dummy byte).
+        // A full-frame 48 KB read would overflow the ESP32-C3 stack.
+        let mut buf = [0u8; 17];
         self.send_command(SSD1677Command::ReadRam);
-        self.recv_data(&mut buffer);
+        self.recv_debug(&mut buf);
         {
             print!("Returned data ({:?}): ", color);
-            let data = buffer.as_array_of_cells();
-            for i in 0..16 {
-                print!("{:02X}", data[i].get());
+            // Skip byte 0 (dummy), print bytes 1..=16
+            for i in 1..=16 {
+                print!("{:02X}", buf[i]);
             }
             println!("");
         }
@@ -446,6 +451,13 @@ impl SSD1677 {
         self.dc.set_high();
         self.cs.set_low();
         let data: &mut [u8] = unsafe { &mut *(data.as_ptr()) };
+        self.spi.read(data);
+        self.cs.set_high();
+    }
+
+    fn recv_debug(&mut self, data: &mut [u8]) {
+        self.dc.set_high();
+        self.cs.set_low();
         self.spi.read(data);
         self.cs.set_high();
     }
