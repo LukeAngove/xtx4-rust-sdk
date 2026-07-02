@@ -6,5 +6,5 @@ members = [
 ]
 # Exclude from platform specific targets from build; only build when depended on.
 # Stops build errors on incompatible platforms
-exclude = ["xtx4_desktop", "xtx4_esp32"]
+exclude = ["xtx4_desktop", "xtx4_esp32", "xtx4_emulated"]
 resolver = "2"

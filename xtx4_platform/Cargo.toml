@@ -6,9 +6,11 @@ edition = "2021"
 [features]
 desktop = ["dep:xtx4_desktop"]
 esp32 = ["dep:xtx4_esp32"]
+emulated = ["dep:xtx4_emulated"]
 
 [dependencies]
 xtx4_platform_interface = { path = "../xtx4_platform_interface" }
 xtx4_desktop = { path = "../xtx4_desktop", optional = true }
 xtx4_esp32 = { path = "../xtx4_esp32", optional = true }
+xtx4_emulated = { path = "../xtx4_emulated", optional = true }
 embedded-graphics = "0.8"

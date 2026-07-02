@@ -8,11 +8,17 @@ use xtx4_desktop::DesktopPlatform;
 #[cfg(feature = "esp32")]
 use xtx4_esp32::Esp32Platform;
 
+#[cfg(feature = "emulated")]
+use xtx4_emulated::EmulatedPlatform;
+
 #[cfg(feature = "desktop")]
 pub type Canvas<'a> = crate::canvas::Canvas<'a, xtx4_desktop::DesktopTransform>;
 
 #[cfg(feature = "esp32")]
 pub type Canvas<'a> = crate::canvas::Canvas<'a, xtx4_esp32::Esp32Transform>;
+
+#[cfg(feature = "emulated")]
+pub type Canvas<'a> = crate::canvas::Canvas<'a, xtx4_emulated::EmulatedTransform>;
 
 
 pub struct XtX4 {
@@ -21,6 +27,9 @@ pub struct XtX4 {
 
     #[cfg(feature = "esp32")]
     platform: Esp32Platform,
+
+    #[cfg(feature = "emulated")]
+    platform: EmulatedPlatform,
 
     input_state_manager: InputStateManager,
     framebuffer: Framebuffer,
@@ -33,6 +42,9 @@ impl XtX4 {
 
         #[cfg(feature = "esp32")]
         let mut platform = Esp32Platform::new();
+
+        #[cfg(feature = "emulated")]
+        let mut platform = EmulatedPlatform::new();
 
         let mut input_state_manager = InputStateManager::new();
         _ = input_state_manager.update(&mut platform);

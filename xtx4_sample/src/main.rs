@@ -22,7 +22,7 @@ fn main() {
     {
         let full_canvas = platform.canvas();
 
-        full_canvas.fill(0xFF); // start with white screen
+        full_canvas.fill(0x00); // start with white screen (0=white in e-ink)
         platform.display_flush();
     }
 
@@ -41,12 +41,21 @@ fn main() {
 
     platform.display_full_flush(&canvas);
 
-    //let buf = bit_buf!(0xffu8; (100, 100));
-    let buf = bit_buf!(0xffu8; (80, 80));
-    let mut canvas = Canvas::new(&buf, Size::new(80,80));
-    //let mut canvas = Canvas::new(&buf, Size::new(100,100));
-    Text::new("Hi!", Point::new(0, 10), text_style).draw(&mut canvas).expect("Invalid draw!");
-    platform.display_partial_at(&canvas, Point::new(40,40));
+    // Skip small-canvas drawing (crashes with rotated transforms).
+    // Instead, auto-run SideTop sequence for testing.
+    {
+        let full_canvas = platform.canvas();
+        full_canvas.fill(0x00); // start with white screen for SideTop test
+        platform.display_fast();
+    }
+    platform.log("Auto SideTop test...");
+    for i in 0..5i32 {
+        let x = 80 + i * 80;
+        let mut black = bit_buf!(0xffu8; (40, 40));
+        let black = Canvas::new(&mut black, Size::new(40, 40));
+        platform.display_partial_at(&black, Point::new(x, 400));
+    }
+    platform.log("SideTop test complete. Entering main loop.");
 
     platform.log("Starting main loop...");
 
