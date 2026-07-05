@@ -35,7 +35,6 @@ impl<T: DisplayTransport> Display<T> {
 
 
     fn init(&mut self) {
-        println!("Initializing SSD1677...");
         self.controller.reset();
 
         self.controller.soft_reset();
@@ -57,8 +56,6 @@ impl<T: DisplayTransport> Display<T> {
 
         self.controller.auto_write_ram(Color::BlackWhite, 0xF7);
         self.controller.auto_write_ram(Color::Red, 0xF7);
-
-        println!("SSD1677 ready");
     }
 
     pub fn set_ram_area(&mut self, region: &Rectangle) {

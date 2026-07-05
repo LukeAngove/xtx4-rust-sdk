@@ -162,21 +162,35 @@ impl MockTransport {
         let bwptr: *const u8 = bw.as_ptr() as *const u8;
         let rdptr: *const u8 = red.as_ptr() as *const u8;
 
-        if self.ctrl1 == CTRL1_BYPASS_RED {
+        // Lookup table: result bit for each (R, BW) pair
+        // Index: bit 1 = R, bit 0 = BW
+        // Table 6-5: (0,0)->Black(0), (0,1)->White(1), (1,0)->Black(0), (1,1)->White(1)
+        const LUT: [u8; 4] = [0, 1, 0, 1];
+
+        if self.ctrl1 != CTRL1_BYPASS_RED {
+            // Validate: Red should match the current screen before update.
+            // If not, the previous Red write didn't complete correctly.
             for i in 0..DISPLAY_BYTES {
-                unsafe { *sptr.add(i) = *bwptr.add(i); }
-            }
-        } else {
-            for i in 0..DISPLAY_BYTES {
-                let b = unsafe { *bwptr.add(i) };
                 let r = unsafe { *rdptr.add(i) };
-                let diff = b ^ r;
-                if diff != 0 {
-                    let old = unsafe { *sptr.add(i) };
-                    let new = (old & !diff) | (b & diff);
-                    unsafe { *sptr.add(i) = new; }
+                let s = unsafe { *sptr.add(i) };
+                if r != s {
+                    eprintln!("Red/Screen mismatch at byte {}: Red={:02X}, Screen={:02X}", i, r, s);
+                    break;
                 }
             }
+        }
+
+        for i in 0..DISPLAY_BYTES {
+            let b = unsafe { *bwptr.add(i) };
+            let r = if self.ctrl1 == CTRL1_BYPASS_RED { 0u8 } else { unsafe { *rdptr.add(i) } };
+            let mut result: u8 = 0;
+            for bit in 0..8 {
+                let r_bit = (r >> bit) & 1;
+                let b_bit = (b >> bit) & 1;
+                let idx = (r_bit << 1) | b_bit;
+                result |= LUT[idx as usize] << bit;
+            }
+            unsafe { *sptr.add(i) = result; }
         }
 
         // Write PBM output after every refresh

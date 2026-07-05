@@ -5,13 +5,14 @@ use esp_hal::{
     time::Rate,
     spi::{
         Mode,
-        master::{Spi, Config},
+        master::{Spi, Config, AnySpi},
     },
     gpio::{Level, Input, Output, AnyPin},
 };
 use esp_hal::gpio::InputConfig;
 use esp_hal::gpio::OutputConfig;
 
+use esp_println::{println, print};
 use crate::sleep::sleep_ms;
 use crate::display_transport::DisplayTransport;
 
@@ -24,7 +25,7 @@ pub struct EspTransport {
 }
 
 pub struct EspTransportBuilder {
-    pub spi:   AnyPin<'static>,
+    pub spi:   AnySpi<'static>,
     pub sck:   AnyPin<'static>,
     pub mosi:  AnyPin<'static>,
     pub miso:  AnyPin<'static>,
@@ -60,6 +61,8 @@ impl EspTransport {
 
 impl DisplayTransport for EspTransport {
     fn write_command(&mut self, cmd: u8) {
+        let t = self.millis();
+        println!("[{}] CMD 0x{:02X}", t, cmd);
         self.dc.set_low();
         self.cs.set_low();
         self.spi.write(&[cmd]).unwrap();
@@ -67,6 +70,24 @@ impl DisplayTransport for EspTransport {
     }
 
     fn write_data(&mut self, data: &[u8]) {
+        let t = self.millis();
+        if data.len() < 32 {
+            print!("[{}] DATA [", t);
+            for (i, b) in data.iter().enumerate() {
+                if i > 0 { print!(" "); }
+                print!("{:02X}", b);
+            }
+            let unit = if data.len() == 1 { "byte" } else { "bytes" };
+            println!("] ({} {})", data.len(), unit);
+        } else {
+            print!("[{}] DATA [", t);
+            for i in 0..16 {
+                if i > 0 { print!(" "); }
+                print!("{:02X}", data[i]);
+            }
+            let unit = if data.len() == 1 { "byte" } else { "bytes" };
+            println!("...] ({} {})", data.len(), unit);
+        }
         self.dc.set_high();
         self.cs.set_low();
         if !data.is_empty() {
@@ -76,15 +97,19 @@ impl DisplayTransport for EspTransport {
     }
 
     fn read_data(&mut self, data: &mut [u8]) {
+        let t = self.millis();
+        println!("[{}] READ {} bytes", t, data.len());
         self.dc.set_high();
         self.cs.set_low();
         if !data.is_empty() {
-            self.spi.read(data);
+            let _ = self.spi.read(data);
         }
         self.cs.set_high();
     }
 
     fn reset(&mut self) {
+        let t = self.millis();
+        println!("[{}] RESET", t);
         self.rst.set_high();
         sleep_ms(20);
         self.rst.set_low();

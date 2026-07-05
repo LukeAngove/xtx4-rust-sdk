@@ -161,6 +161,11 @@ impl<T: DisplayTransport> SSD1677<T> {
         self.send_byte(sensor);
     }
 
+    pub fn write_temp_register(&mut self, temp: u8) {
+        self.send_command(SSD1677Command::TempSensorControlWrite);
+        self.send_byte(temp);
+    }
+
     pub fn booster_soft_start(&mut self, sequence: &Buffer) {
         self.send_command(SSD1677Command::BoosterSoftStart);
         self.send_data(sequence);
@@ -203,10 +208,10 @@ impl<T: DisplayTransport> SSD1677<T> {
         }
     }
 
-    pub fn display(&mut self, command1: DisplayUpdate1Commands, command2: DisplayUpdate2Commands) {
+    pub fn display(&mut self, command1: DisplayUpdate1Commands, command2: DisplayUpdate2Commands, comment: &str) {
         self.display_update_ctrl1(command1);
         self.display_update_ctrl2(command2);
-        self.master_activation();
+        self.master_activation(comment);
     }
 
     pub fn screen_sleep(&mut self) {
@@ -224,12 +229,17 @@ impl<T: DisplayTransport> SSD1677<T> {
         self.send_byte(command.bits());
     }
 
-    pub fn master_activation(&mut self) {
+    pub fn master_activation(&mut self, comment: &str) {
         self.send_command(SSD1677Command::MasterActivation);
-        self.wait_while_busy("master activation");
+        self.wait_while_busy(comment);
     }
 
     fn wait_while_busy(&mut self, comment: &str) {
+        let start = self.transport.millis();
+        if !self.transport.busy_high() {
+            return;
+        }
+        println!("[{}] BUSY=1 (waiting: {})", start, comment);
         let mut timeout = 10_000u32;
         while self.transport.busy_high() {
             self.transport.delay_ms(1u32);
@@ -239,46 +249,26 @@ impl<T: DisplayTransport> SSD1677<T> {
                 return;
             }
         }
+        let done = self.transport.millis();
+        println!("[{}] BUSY=0 (done: {}, {} ms)", done, comment, done - start);
     }
 
     pub fn refresh_full(&mut self) {
-        //let mut mode = DisplayUpdate2Commands::LoadI2CTemp | DisplayUpdate2Commands::LoadLUT | DisplayUpdate2Commands::DisplayMode1 | DisplayUpdate2Commands::DisplayEnable;
-        //if !self.is_screen_on {
-        //    self.is_screen_on = true;
-        //    mode |= DisplayUpdate2Commands::EnableClock | DisplayUpdate2Commands::EnableAnalog;
-        //    println!("Screen turned on");
-        //}
-        let mode = 
-            DisplayUpdate2Commands::EnableClock |
-            DisplayUpdate2Commands::EnableAnalog |
-            DisplayUpdate2Commands::LoadI2CTemp |
-            DisplayUpdate2Commands::LoadLUT |
-            DisplayUpdate2Commands::DisplayMode1 | // Mode 1 is 'full' update
-            DisplayUpdate2Commands::DisplayEnable |
-            DisplayUpdate2Commands::DisableClock |
-            DisplayUpdate2Commands::DisableAnalog;
-        //self.display(DisplayUpdate1Commands::Normal, mode);
-        self.display(DisplayUpdate1Commands::BypassRed, mode);
+        let mut mode = DisplayUpdate2Commands::LoadI2CTemp | DisplayUpdate2Commands::LoadLUT | DisplayUpdate2Commands::DisplayMode1 | DisplayUpdate2Commands::DisplayEnable;
+        if !self.is_screen_on {
+            self.is_screen_on = true;
+            mode |= DisplayUpdate2Commands::EnableClock | DisplayUpdate2Commands::EnableAnalog;
+        }
+        self.display(DisplayUpdate1Commands::BypassRed, mode, "full");
     }
 
     pub fn refresh_partial(&mut self) {
-        //let mut mode = DisplayUpdate2Commands::LoadLUT | DisplayUpdate2Commands::DisplayMode2 | DisplayUpdate2Commands::DisplayEnable;
-        //if !self.is_screen_on {
-        //    self.is_screen_on = true;
-        //    mode |= DisplayUpdate2Commands::EnableClock | DisplayUpdate2Commands::EnableAnalog;
-        //    println!("Screen turned on");
-        //}
-        let mode =
-            DisplayUpdate2Commands::EnableClock |
-            DisplayUpdate2Commands::EnableAnalog |
-            DisplayUpdate2Commands::LoadLUT |
-            DisplayUpdate2Commands::DisplayMode2 | // Mode 2 is partial update
-            DisplayUpdate2Commands::DisplayEnable |
-            DisplayUpdate2Commands::DisableClock |
-            DisplayUpdate2Commands::DisableAnalog;
-            
-        self.display(DisplayUpdate1Commands::Normal, mode);
-        //self.display(DisplayUpdate1Commands::BypassRed, mode);
+        let mut mode = DisplayUpdate2Commands::LoadLUT | DisplayUpdate2Commands::DisplayMode2 | DisplayUpdate2Commands::DisplayEnable;
+        if !self.is_screen_on {
+            self.is_screen_on = true;
+            mode |= DisplayUpdate2Commands::EnableClock | DisplayUpdate2Commands::EnableAnalog;
+        }
+        self.display(DisplayUpdate1Commands::Normal, mode, "fast");
     }
 
     pub fn write_ram(&mut self, color: Color, buffer: &Buffer) {
@@ -286,14 +276,6 @@ impl<T: DisplayTransport> SSD1677<T> {
             Color::Red => SSD1677Command::WriteRamRed,
             Color::BlackWhite => SSD1677Command::WriteRamBw,
         };
-
-        let cells = buffer.as_slice_of_cells();
-        print!("Buffer data: ");
-        for i in 0..16 {
-            print!("{:02X}", cells[i].get());
-        }
-        println!("");
-
 
         self.send_command(command);
         self.send_data(buffer);
@@ -359,7 +341,6 @@ impl<T: DisplayTransport> SSD1677<T> {
     }
 
     fn send_command(&mut self, cmd: SSD1677Command) {
-        println!("Command: {:?}", cmd);
         self.transport.write_command(cmd as u8);
     }
 
@@ -371,13 +352,6 @@ impl<T: DisplayTransport> SSD1677<T> {
         let len = data.as_slice_of_cells().len();
         // SAFETY: read-only, fixed lifetime use
         let data: &[u8] = unsafe { &*(data.as_ptr()) };
-        if len > 16 {
-            print!("Pointer buffer data: ");
-            for i in 0..16 {
-                print!("{:02X}", data[i]);
-            }
-            println!("");
-        }
 
         self.transport.write_data(data);
     }

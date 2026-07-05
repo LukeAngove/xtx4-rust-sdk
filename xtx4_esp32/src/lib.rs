@@ -16,6 +16,9 @@
 //   Buttons : resistor ladder on ADC (check SDK for voltage thresholds)
 //   Battery : GPIO 0, voltage divider — ADC read = 0.5 × actual voltage
 
+#[cfg(not(target_arch = "x86_64"))]
+use esp_backtrace as _;
+
 mod display_transport;
 mod ssd1677;
 mod display;
@@ -32,7 +35,7 @@ pub mod mock_transport;
 #[cfg(target_arch = "x86_64")]
 pub mod emulated;
 
-use xtx4_platform_interface::{Buttons, Framebuffer, Buffer, Rectangle, FRAME_WIDTH, FRAME_HEIGHT, DrawTransform};
+use xtx4_platform_interface::{bit_buf, Buttons, Framebuffer, Buffer, Rectangle, FRAME_WIDTH, FRAME_HEIGHT, DrawTransform};
 use xtx4_platform_interface::Platform as PlatformTrait;
 use crate::display_transport::{ButtonReader, DisplayTransport};
 use crate::ssd1677::Color;
@@ -74,8 +77,6 @@ impl<T: DisplayTransport, B: ButtonReader> PlatformTrait for Xtx4Platform<T, B> 
 
         self.display.write_region(Color::BlackWhite, fb, &full);
         self.display.write_region(Color::Red, fb, &full);
-        self.display.read_buffer(Color::BlackWhite);
-        self.display.read_buffer(Color::Red);
         self.display.refresh_full();
     }
 
@@ -83,10 +84,9 @@ impl<T: DisplayTransport, B: ButtonReader> PlatformTrait for Xtx4Platform<T, B> 
         let full = self.display.full_display_rect();
 
         self.display.write_region(Color::BlackWhite, fb, &full);
-        self.display.read_buffer(Color::BlackWhite);
-        self.display.read_buffer(Color::Red);
+        let white = bit_buf!(0xFFu8; (FRAME_WIDTH, FRAME_HEIGHT));
+        self.display.write_region(Color::Red, &white, &full);
         self.display.refresh_partial();
-        self.display.write_region(Color::Red, fb, &full);
     }
 
     fn display_flush_partial(&mut self, fb: &Buffer, frame: &Rectangle) {
@@ -99,9 +99,14 @@ impl<T: DisplayTransport, B: ButtonReader> PlatformTrait for Xtx4Platform<T, B> 
             h: w,
         };
 
+        // Write BW with current frame data
         self.display.write_region(Color::BlackWhite, fb, frame);
+
+        // Write Red with 0xFF (matching C++: frameBufferActive always has initial white)
+        let white = bit_buf!(0xFFu8; (40, 40));
+        self.display.write_region(Color::Red, &white, frame);
+
         self.display.refresh_partial();
-        self.display.write_region(Color::Red, fb, frame);
     }
 
     fn button_state(&mut self) -> Buttons {
