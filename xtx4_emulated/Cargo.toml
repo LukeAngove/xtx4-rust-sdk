@@ -5,5 +5,5 @@ edition = "2021"
 
 [dependencies]
 xtx4_platform_interface = { path = "../xtx4_platform_interface" }
-minifb = { version = "0.27", features = ["x11"] }
 embedded-graphics = "0.8"
+crossterm = "0.28"

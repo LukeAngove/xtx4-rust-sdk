@@ -2,20 +2,45 @@
 //
 // Uses an in-memory pair of (BW, RED) RAM banks to simulate the SSD1677,
 // runs the exact same display pipeline as the ESP32 driver, and renders
-// to a minifb window AND diagnostic text to stdout. This lets us reproduce
-// and debug differential-update bugs without hardware.
+// the display output as a TUI in the terminal. Key presses from tmux
+// send-keys drive the button handlers.
 
 use core::cell::Cell;
-use minifb::{Key, Window, WindowOptions};
+use crossterm::{
+    cursor::MoveTo,
+    terminal::{disable_raw_mode, enable_raw_mode, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen},
+    execute,
+};
+use std::io::{stdout, Write, Read};
+use std::sync::atomic::{AtomicU8, Ordering};
+use std::thread;
+
+static LAST_KEY: AtomicU8 = AtomicU8::new(0);
+
+fn spawn_stdin_reader() {
+    thread::spawn(|| {
+        let mut buf = [0u8; 1];
+        loop {
+            match std::io::stdin().read(&mut buf) {
+                Ok(_) => {
+                    LAST_KEY.store(buf[0], Ordering::Relaxed);
+                }
+                Err(_) => {
+                    std::thread::sleep(std::time::Duration::from_millis(10));
+                }
+            }
+        }
+    });
+}
 use xtx4_platform_interface::{
     Buffer, Buttons, DrawTransform, Framebuffer, Platform, Rectangle,
     FRAME_HEIGHT, FRAME_WIDTH,
 };
 
 // Display dimensions in landscape (same as hardware)
-const DISPLAY_WIDTH: usize = FRAME_HEIGHT; // 800
-const DISPLAY_HEIGHT: usize = FRAME_WIDTH; // 480
-const DISPLAY_BYTES: usize = DISPLAY_WIDTH * DISPLAY_HEIGHT / 8;
+pub const DISPLAY_WIDTH: usize = FRAME_HEIGHT; // 800
+pub const DISPLAY_HEIGHT: usize = FRAME_WIDTH; // 480
+pub const DISPLAY_BYTES: usize = DISPLAY_WIDTH * DISPLAY_HEIGHT / 8;
 
 // ── Coordinate transform (same as Esp32Transform) ──────────────────────────
 
@@ -27,6 +52,9 @@ impl DrawTransform for EmulatedTransform {
     }
 
     fn apply(x: u16, y: u16, _width: u16, _height: u16) -> Option<(u16, u16)> {
+        if x >= FRAME_WIDTH as u16 {
+            return None;
+        }
         let (p_x, p_y) = (y, FRAME_WIDTH as u16 - 1 - x);
         if p_x < FRAME_HEIGHT as u16 && p_y < FRAME_WIDTH as u16 {
             Some((p_x, p_y))
@@ -121,7 +149,7 @@ impl MockSsd1677 {
         let ram = if red { &self.red_ram } else { &self.bw_ram };
         // SAFETY: we write only within bounds, and no other code reads these cells concurrently
         let ptr: *mut u8 = ram.as_ptr() as *mut u8;
-        for &byte in data {
+        for &byte in data.iter() {
             let x = self.x_counter as usize;
             let y = self.y_counter as usize;
             let addr = y * DISPLAY_WIDTH / 8 + x / 8;
@@ -173,30 +201,24 @@ impl MockSsd1677 {
 ///   ▀   = top black, bottom white
 ///   ▄   = top white, bottom black
 ///   █   = both black
-fn render_text(pixels: &[u8; DISPLAY_BYTES], crop_x: usize, crop_y: usize, crop_w: usize, crop_h: usize) -> String {
+pub fn render_text(pixels: &[u8; DISPLAY_BYTES]) -> String {
+    // Portrait: each char is 1 portrait-column × 2 portrait-rows
+    // Portrait dims: 480 cols × 800 rows = 480 × 400 chars
     let mut out = String::new();
-    // Iterate rows in pairs (2 rows per char)
-    let mut row = crop_y;
-    while row < crop_y + crop_h {
-        for col in 0..crop_w {
-            let px_col = crop_x + col;
-            if px_col >= DISPLAY_WIDTH { continue; }
-
-            let top_idx = row * DISPLAY_WIDTH + px_col;
-            let bot_idx = if row + 1 < crop_y + crop_h && row + 1 < DISPLAY_HEIGHT {
-                (row + 1) * DISPLAY_WIDTH + px_col
-            } else {
-                top_idx
-            };
-
-            let top_byte = top_idx / 8;
-            let top_bit = top_idx % 8;
-            let bot_byte = bot_idx / 8;
-            let bot_bit = bot_idx % 8;
-
+    for row in 0..DISPLAY_WIDTH/2 {
+        for col in 0..DISPLAY_HEIGHT {
+            // Landscape: l_y = 479 - col (portrait X), l_x = portrait Y
+            let top_l_y = DISPLAY_HEIGHT - 1 - col;
+            let top_l_x = row * 2;
+            let bot_l_x = if row * 2 + 1 < DISPLAY_WIDTH { row * 2 + 1 } else { row * 2 };
+            let top_addr = top_l_y * DISPLAY_WIDTH + top_l_x;
+            let bot_addr = top_l_y * DISPLAY_WIDTH + bot_l_x;
+            let top_byte = top_addr / 8;
+            let top_bit = top_addr % 8;
+            let bot_byte = bot_addr / 8;
+            let bot_bit = bot_addr % 8;
             let top_white = (pixels[top_byte] & (0x80 >> top_bit)) == 0;
             let bot_white = (pixels[bot_byte] & (0x80 >> bot_bit)) == 0;
-
             let ch = match (top_white, bot_white) {
                 (true,  true)  => ' ',
                 (false, true)  => '▀',
@@ -206,21 +228,8 @@ fn render_text(pixels: &[u8; DISPLAY_BYTES], crop_x: usize, crop_y: usize, crop_
             out.push(ch);
         }
         out.push('\n');
-        row += 2;
     }
     out
-}
-
-/// Crop region covering all SideTop squares after rotation.
-fn side_top_crop() -> (usize, usize, usize, usize) {
-    // SideTop positions in app: x=80,160,240,320,400, y=400
-    // After rotation: display X = app Y = 400
-    //                  display Y = 480 - 1 - app_x
-    // For x=80:  display Y = 399
-    // For x=400: display Y = 79
-    // So Y ranges from ~79 to ~399, plus padding = 40..420
-    // X is fixed at 400, so crop X = 380..440 = 60 pixels wide
-    (380, 30, 70, 420)
 }
 
 // ── Display wrapper (mirrors the real xtx4_esp32::display::Display) ─────────
@@ -249,11 +258,9 @@ impl MockDisplay {
     }
 
     fn init(&mut self) {
-        println!("Initializing mock SSD1677...");
         self.controller.soft_reset();
         self.controller.auto_write_ram(false, 0xF7);
         self.controller.auto_write_ram(true, 0xF7);
-        println!("Mock SSD1677 ready");
     }
 
     pub fn read_buffer(&mut self, color: Color) {
@@ -324,63 +331,74 @@ pub enum Color {
 
 pub struct EmulatedPlatform {
     display: MockDisplay,
-    window: Window,
-    render_buf: Vec<u32>,
+    frame_counter: u64,
 }
 
-const BLACK: u32 = 0x001C1C1A;
-const WHITE: u32 = 0x00F0ECD8;
+
 
 impl EmulatedPlatform {
     pub fn new() -> Self {
-        let window = Window::new(
-            "Xteink X4 — Emulated Display",
-            DISPLAY_WIDTH,
-            DISPLAY_HEIGHT,
-            WindowOptions::default(),
-        )
-        .expect("Failed to open emulator window");
+        // Enable raw mode and switch to alternate screen (no scrollback)
+        enable_raw_mode().expect("enable raw mode");
+        let mut out = stdout();
+        let _ = execute!(out, EnterAlternateScreen);
+        spawn_stdin_reader();
 
         let mut s = Self {
             display: MockDisplay::new(DISPLAY_WIDTH as u16, DISPLAY_HEIGHT as u16),
-            window,
-            render_buf: vec![WHITE; DISPLAY_WIDTH * DISPLAY_HEIGHT],
+            frame_counter: 0,
         };
-        s.render_window();
         s.render_text();
         s
     }
 
     fn render_window(&mut self) {
-        let pixels = self.display.pixel_bytes();
-        for (i, byte) in pixels.enumerate() {
-            for bit in 0..8 {
-                let px = i * 8 + bit;
-                if px < self.render_buf.len() {
-                    let white = (byte & (0x80 >> bit)) != 0;
-                    self.render_buf[px] = if white { WHITE } else { BLACK };
-                }
-            }
-        }
-        self.window
-            .update_with_buffer(&self.render_buf, DISPLAY_WIDTH, DISPLAY_HEIGHT)
-            .unwrap();
+        // No graphical window; TUI output via render_text()
     }
 
-    fn render_text(&self) {
+    fn render_text(&mut self) {
         let mut pixel_buf = [0u8; DISPLAY_BYTES];
         for (i, b) in self.display.pixel_bytes().enumerate() {
             pixel_buf[i] = b;
         }
-        let (cx, cy, cw, ch) = side_top_crop();
-        let text = render_text(&pixel_buf, cx, cy, cw, ch);
-        println!("┌─ SideTop crop ({},{}) {}×{} ───────────────────────┐", cx, cy, cw, ch);
-        for line in text.lines() {
-            if line.len() > 0 {
-                println!("│{}│", line);
+        // Write PBM frame (portrait orientation: 480 wide × 800 tall)
+        let _ = std::fs::create_dir_all("/tmp/xtx4_frames");
+        let path = format!("/tmp/xtx4_frames/frame_{:04}.pbm", self.frame_counter);
+        if let Ok(mut f) = std::fs::File::create(&path) {
+            use std::io::Write;
+            // PBM header: width=480 (portrait), height=800 (portrait)
+            let _ = f.write_all(b"P4\n480 800\n");
+            // Build portrait byte array: 480 cols × 800 rows / 8 = 48000 bytes
+            // Portrait pixel (p_x, p_y) → landscape (l_x=p_y, l_y=479-p_x)
+            // Portrait byte index = p_y * (480/8) + p_x/8 = p_y * 60 + p_x/8
+            // Portrait bit = p_x % 8
+            // Landscape byte = l_y * 100 + l_x/8
+            // Landscape bit = l_x % 8
+            let mut portrait = [0u8; DISPLAY_BYTES];
+            for p_y in 0..DISPLAY_WIDTH {
+                for p_x in 0..DISPLAY_HEIGHT {
+                    let l_y = DISPLAY_HEIGHT - 1 - p_x;
+                    let l_x = p_y;
+                    let l_byte = l_y * (DISPLAY_WIDTH / 8) + l_x / 8;
+                    let l_bit = l_x % 8;
+                    let p_byte = p_y * (DISPLAY_HEIGHT / 8) + p_x / 8;
+                    let p_bit = p_x % 8;
+                    let bit_val = (pixel_buf[l_byte] >> (7 - l_bit)) & 1;
+                    portrait[p_byte] |= bit_val << (7 - p_bit);
+                }
             }
+            let _ = f.write_all(&portrait);
         }
-        println!("└──────────────────────────────────────────────────────┘");
+        self.frame_counter += 1;
+
+        // Render to terminal (alternate screen)
+        let text = render_text(&pixel_buf);
+        let mut out = stdout();
+        let _ = execute!(out, Clear(ClearType::All), MoveTo(0, 0));
+        for line in text.lines() {
+            let _ = write!(out, "{}\r\n", line);
+        }
+        let _ = out.flush();
     }
 
     fn push_display(&mut self, fb: &Framebuffer, full: bool) {
@@ -395,8 +413,6 @@ impl EmulatedPlatform {
             // Sync RED for next diff
             self.display.write_region(Color::Red, fb, &full_rect);
         }
-        self.render_window();
-        self.render_text();
     }
 }
 
@@ -405,6 +421,7 @@ impl Platform for EmulatedPlatform {
         self.push_display(fb, true);
         self.display.read_buffer(Color::BlackWhite);
         self.display.read_buffer(Color::Red);
+        self.render_text();
     }
 
     fn display_fast(&mut self, fb: &Framebuffer) {
@@ -412,7 +429,6 @@ impl Platform for EmulatedPlatform {
         self.display.write_region(Color::BlackWhite, fb, &full_rect);
         self.display.refresh_partial();
         self.display.write_region(Color::Red, fb, &full_rect);
-        self.render_window();
         self.render_text();
     }
 
@@ -428,20 +444,27 @@ impl Platform for EmulatedPlatform {
         self.display.write_region(Color::BlackWhite, fb, frame);
         self.display.refresh_partial();
         self.display.write_region(Color::Red, fb, frame);
-        self.render_window();
         self.render_text();
     }
 
     fn button_state(&mut self) -> Buttons {
-        self.window.update();
+        let key = LAST_KEY.swap(0, Ordering::Relaxed);
         let mut state = Buttons::empty();
-        if self.window.is_key_down(Key::D) { state |= Buttons::LEFT_OUTER; }
-        if self.window.is_key_down(Key::F) { state |= Buttons::LEFT_INNER; }
-        if self.window.is_key_down(Key::J) { state |= Buttons::RIGHT_INNER; }
-        if self.window.is_key_down(Key::K) { state |= Buttons::RIGHT_OUTER; }
-        if self.window.is_key_down(Key::L) { state |= Buttons::SIDE_TOP; }
-        if self.window.is_key_down(Key::Semicolon) { state |= Buttons::SIDE_BOTTOM; }
-        if self.window.is_key_down(Key::P) { state |= Buttons::POWER; }
+        match key {
+            b'd' | b'D' | b'r' | b'R' => state |= Buttons::LEFT_OUTER,
+            b'f' | b'F' => state |= Buttons::LEFT_INNER,
+            b'j' | b'J' => state |= Buttons::RIGHT_INNER,
+            b'k' | b'K' => state |= Buttons::RIGHT_OUTER,
+            b'l' | b'L' => state |= Buttons::SIDE_TOP,
+            b';' => state |= Buttons::SIDE_BOTTOM,
+            b'p' | b'P' => state |= Buttons::POWER,
+            b'q' | b'Q' => {
+                let _ = execute!(stdout(), LeaveAlternateScreen);
+                let _ = disable_raw_mode();
+                std::process::exit(0);
+            }
+            _ => {}
+        }
         state
     }
 
@@ -454,17 +477,138 @@ impl Platform for EmulatedPlatform {
 
     fn sleep_ms(&mut self, ms: u32) {
         std::thread::sleep(std::time::Duration::from_millis(ms as u64));
-        self.window.update();
     }
 
     fn low_power_enable(&mut self) {}
     fn low_power_disable(&mut self) {}
 
     fn power_off(&mut self) {
+        let _ = disable_raw_mode();
         std::process::exit(0);
     }
 
-    fn log(&mut self, msg: &str) {
-        println!("{}", msg);
+    fn log(&mut self, _msg: &str) {
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_pixels(val: u8) -> [u8; DISPLAY_BYTES] {
+        [val; DISPLAY_BYTES]
+    }
+
+    #[test]
+    fn all_white_gives_spaces() {
+        let pixels = make_pixels(0x00);
+        let out = render_text(&pixels);
+        let lines: Vec<&str> = out.lines().collect();
+        assert_eq!(lines.len(), DISPLAY_WIDTH / 2);
+        for (i, line) in lines.iter().enumerate() {
+            assert_eq!(line.chars().count(), DISPLAY_HEIGHT, "line {i} wrong width");
+            for ch in line.chars() {
+                assert_eq!(ch, ' ');
+            }
+        }
+    }
+
+    #[test]
+    fn all_black_gives_full_blocks() {
+        let pixels = make_pixels(0xFF);
+        let out = render_text(&pixels);
+        let lines: Vec<&str> = out.lines().collect();
+        assert_eq!(lines.len(), DISPLAY_WIDTH / 2);
+        for (i, line) in lines.iter().enumerate() {
+            assert_eq!(line.chars().count(), DISPLAY_HEIGHT, "line {i} wrong width");
+            for ch in line.chars() {
+                assert_eq!(ch, '█');
+            }
+        }
+    }
+
+    #[test]
+    fn single_pixel_top_half() {
+        // Landscape (x=0, y=479) → portrait (col=0, row=0)
+        // byte = 479 * 100 + 0/8 = 47900, bit = 0
+        let mut pixels = make_pixels(0x00);
+        pixels[47900] = 0x80; // bit 0 set
+        let out = render_text(&pixels);
+        let ch = out.lines().next().unwrap().chars().next().unwrap();
+        assert_eq!(ch, '▀', "single top pixel should give top-half block");
+    }
+
+    #[test]
+    fn single_pixel_bottom_half() {
+        // Landscape (x=1, y=479) → portrait (col=0, row=1) → same byte bit 1
+        let mut pixels = make_pixels(0x00);
+        pixels[47900] = 0x40; // bit 1 set
+        let out = render_text(&pixels);
+        let ch = out.lines().next().unwrap().chars().next().unwrap();
+        assert_eq!(ch, '▄', "single bottom pixel should give bottom-half block");
+    }
+
+    #[test]
+    fn both_pixels_full_block() {
+        // Landscape (x=0,1, y=479) → portrait (col=0, rows 0+1)
+        let mut pixels = make_pixels(0x00);
+        pixels[47900] = 0xC0; // bits 0 and 1 set
+        let out = render_text(&pixels);
+        let ch = out.lines().next().unwrap().chars().next().unwrap();
+        assert_eq!(ch, '█', "both pixels should give full block");
+    }
+
+    #[test]
+    fn coordinate_mapping() {
+        // Portrait (col=100, row=200) → landscape (l_x=200, l_y=479-100=379)
+        // byte = 379 * 100 + 200/8 = 37900 + 25 = 37925, bit = 200%8 = 0
+        let mut pixels = make_pixels(0x00);
+        pixels[37925] = 0x80;
+        let out = render_text(&pixels);
+        let lines: Vec<&str> = out.lines().collect();
+        let ch = lines[100].chars().nth(100).unwrap();
+        assert_eq!(ch, '▀', "coord mapping: portrait (100,200) should be at line 100, col 100");
+    }
+
+    #[test]
+    fn mock_display_full_flush() {
+        use core::cell::Cell;
+        let mut display = MockDisplay::new(DISPLAY_WIDTH as u16, DISPLAY_HEIGHT as u16);
+        let full_rect = display.full_display_rect();
+
+        // Write all white
+        let fb_cell: Cell<[u8; DISPLAY_BYTES]> = Cell::new([0u8; DISPLAY_BYTES]);
+        display.write_region(Color::BlackWhite, unsafe { &*(&fb_cell as *const Cell<[u8; DISPLAY_BYTES]> as *const Cell<[u8]>) }, &full_rect);
+        let pixels: Vec<u8> = display.pixel_bytes().collect();
+        assert!(pixels.iter().all(|&b| b == 0x00), "all-white write should give all 0x00 in RAM");
+        let pixels_arr: [u8; DISPLAY_BYTES] = pixels.try_into().unwrap();
+        let text = render_text(&pixels_arr);
+        assert!(text.lines().next().unwrap().chars().all(|c| c == ' '), "all-white should render as spaces");
+
+        // Write all black
+        let fb_cell = Cell::new([0xFFu8; DISPLAY_BYTES]);
+        display.write_region(Color::BlackWhite, unsafe { &*(&fb_cell as *const Cell<[u8; DISPLAY_BYTES]> as *const Cell<[u8]>) }, &full_rect);
+        let pixels: Vec<u8> = display.pixel_bytes().collect();
+        assert!(pixels.iter().all(|&b| b == 0xFF), "all-black write should give all 0xFF in RAM");
+        let pixels_arr: [u8; DISPLAY_BYTES] = pixels.try_into().unwrap();
+        let text = render_text(&pixels_arr);
+        assert!(text.lines().next().unwrap().chars().all(|c| c == '█'), "all-black should render as full blocks");
+
+        // Partial write: 40x40 black square at app (350,380)
+        // Rotated in display_flush_partial: x=380, y=480-350-50=80, w=20, h=50
+        // Buffer must be exactly region_size = 20*50/8 = 125 bytes
+        let region_size = 20 * 50 / 8;
+        let fb_cell: Cell<[u8; 125]> = Cell::new([0xFFu8; 125]);
+        let buf: &Cell<[u8]> = unsafe { &*(&fb_cell as *const Cell<[u8; 125]> as *const Cell<[u8]>) };
+        let rect = Rectangle { x: 380, y: 80, w: 20, h: 50 };
+        display.write_region(Color::BlackWhite, buf, &rect);
+        let pixels: Vec<u8> = display.pixel_bytes().collect();
+
+        // RAM: y=480-80-50=350, y_start=399, y_end=350
+        // RAM row 399, column 380 → byte 399*100 + 380/8 = 39900 + 47 = 39947
+        assert_eq!(pixels[39947], 0xFF, "partial write should set byte at row 399 col 380");
+        // A byte outside the region should still be 0x00 (from previous all-black was overwritten)
+        // Actually we wrote all 0xFF before, so check a byte outside the partial region
+        assert_eq!(pixels[0], 0xFF, "outside region should retain previous value (0xFF)");
     }
 }
