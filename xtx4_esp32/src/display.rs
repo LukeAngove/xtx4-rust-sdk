@@ -1,19 +1,24 @@
+#[cfg(not(target_arch = "x86_64"))]
 use esp_println::println;
+#[cfg(target_arch = "x86_64")]
+use std::println;
 
 use core::cell::Cell;
 
 use xtx4_platform_interface::{Buffer, Rectangle};
 use crate::ssd1677::{SSD1677, Color, DriverOutputControlMode, DataEntryMode, Range};
+use crate::display_transport::DisplayTransport;
 
-pub struct Display {
-    controller: SSD1677,
+pub struct Display<T: DisplayTransport> {
+    pub controller: SSD1677<T>,
     width: u16,
     height: u16,
     ram_region:   Option<Rectangle>,
 }
 
-impl Display {
-    pub fn new(controller: SSD1677, width: u16, height: u16) -> Self {
+impl<T: DisplayTransport> Display<T> {
+    pub fn new(transport: T, width: u16, height: u16) -> Self {
+        let controller = SSD1677::new(transport);
         let mut res = Self {controller , width, height, ram_region: None};
         res.init();
         res
@@ -107,6 +112,42 @@ impl Display {
         self.controller.read_ram(color);
     }
 
+    /// Rotate a portrait frame to landscape coordinates for the display controller.
+    /// This is the shared rotation used by both hardware and emulated platforms.
+    pub fn rotate_rect(&self, rect: &Rectangle) -> Rectangle {
+        let Rectangle { x, y, w, h } = *rect;
+        Rectangle {
+            x: y,
+            y: self.height - x - w,
+            w: h,
+            h: w,
+        }
+    }
+
+    /// Full partial-update: write BW → refresh → write Red (for next cycle).
+    pub fn flush_partial(&mut self, fb: &Buffer, frame: &Rectangle) {
+        let rotated = self.rotate_rect(frame);
+        self.write_region(Color::BlackWhite, fb, &rotated);
+        self.refresh_partial();
+        self.write_region(Color::Red, fb, &rotated);
+    }
+
+    /// Full display flush (full refresh): write BW + Red → refresh_full.
+    pub fn flush_full(&mut self, fb: &Buffer) {
+        let full = self.full_display_rect();
+        self.write_region(Color::BlackWhite, fb, &full);
+        self.write_region(Color::Red, fb, &full);
+        self.refresh_full();
+    }
+
+    /// Fast partial update of full screen: write BW → refresh_partial → write Red.
+    pub fn fast_full(&mut self, fb: &Buffer) {
+        let full = self.full_display_rect();
+        self.write_region(Color::BlackWhite, fb, &full);
+        self.refresh_partial();
+        self.write_region(Color::Red, fb, &full);
+    }
+
     pub fn write_region(&mut self, color: Color, buffer: &Buffer, rect: &Rectangle) {
         let Rectangle{x, y, w, h} = rect;
         let bytes_to_write = (*w as usize)*(*h as usize)/8;
@@ -130,7 +171,7 @@ impl Display {
         self.controller.refresh_partial();
     }
 
-    pub fn sleep(&mut self) {
+        pub fn sleep(&mut self) {
         self.controller.screen_sleep();
     }
 }

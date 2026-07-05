@@ -5,9 +5,9 @@ edition = "2021"
 
 [dependencies]
 xtx4_platform_interface = { path = "../xtx4_platform_interface" }
+bitflags = "2"
+
+[target.'cfg(not(target_arch = "x86_64"))'.dependencies]
 esp-hal = { version = "1.0.0", features = ["esp32c3", "unstable"] }
 esp-println = { version = "0.12", features = ["esp32c3"] }
-embassy-embedded-hal = "0.5"
-nb = "1"
 esp-backtrace = { version = "0.14", features = ["esp32c3", "panic-handler", "println"] }
-bitflags = "2"

@@ -5,31 +5,21 @@ use xtx4_platform_interface::{bit_buf, Buffer, Framebuffer, Platform, Rectangle,
 #[cfg(feature = "desktop")]
 use xtx4_desktop::DesktopPlatform;
 
-#[cfg(feature = "esp32")]
-use xtx4_esp32::Esp32Platform;
-
-#[cfg(feature = "emulated")]
-use xtx4_emulated::EmulatedPlatform;
-
 #[cfg(feature = "desktop")]
 pub type Canvas<'a> = crate::canvas::Canvas<'a, xtx4_desktop::DesktopTransform>;
 
-#[cfg(feature = "esp32")]
+#[cfg(not(feature = "desktop"))]
 pub type Canvas<'a> = crate::canvas::Canvas<'a, xtx4_esp32::Esp32Transform>;
-
-#[cfg(feature = "emulated")]
-pub type Canvas<'a> = crate::canvas::Canvas<'a, xtx4_emulated::EmulatedTransform>;
-
 
 pub struct XtX4 {
     #[cfg(feature = "desktop")]
     platform: DesktopPlatform,
 
-    #[cfg(feature = "esp32")]
-    platform: Esp32Platform,
+    #[cfg(all(not(feature = "desktop"), target_arch = "x86_64"))]
+    platform: xtx4_esp32::Xtx4Platform<xtx4_esp32::mock_transport::MockTransport, xtx4_esp32::emulated::EmulatedButtons>,
 
-    #[cfg(feature = "emulated")]
-    platform: EmulatedPlatform,
+    #[cfg(all(not(feature = "desktop"), not(target_arch = "x86_64")))]
+    platform: xtx4_esp32::Xtx4Platform<xtx4_esp32::esp_transport::EspTransport, xtx4_esp32::buttons::Xtx4Buttons>,
 
     input_state_manager: InputStateManager,
     framebuffer: Framebuffer,
@@ -40,14 +30,14 @@ impl XtX4 {
         #[cfg(feature = "desktop")]
         let mut platform = DesktopPlatform::new();
 
-        #[cfg(feature = "esp32")]
-        let mut platform = Esp32Platform::new();
+        #[cfg(all(not(feature = "desktop"), target_arch = "x86_64"))]
+        let mut platform = xtx4_esp32::Xtx4Platform::new();
 
-        #[cfg(feature = "emulated")]
-        let mut platform = EmulatedPlatform::new();
+        #[cfg(all(not(feature = "desktop"), not(target_arch = "x86_64")))]
+        let mut platform = xtx4_esp32::Xtx4Platform::new();
 
         let mut input_state_manager = InputStateManager::new();
-        _ = input_state_manager.update(&mut platform);
+        input_state_manager.update(&mut platform);
         let framebuffer = bit_buf!(0u8; (FRAME_WIDTH, FRAME_HEIGHT));
         Self {
             platform,
@@ -68,25 +58,19 @@ impl XtX4 {
         canvas
     }
 
-    /// Push a full framebuffer to the display (or emulated window).
     pub fn display_flush(&mut self) {
         self.platform.display_flush(&self.framebuffer);
     }
 
-    /// Push a full framebuffer to the display (or emulated window).
-    /// Canvas is moved over the old canvas.
     pub fn display_full_flush(&mut self, canvas: &Canvas) {
-        // TODO Should panic if canvas isn't same size as screen.
         let arr: &Framebuffer = unsafe { &*(canvas.buf() as *const Buffer as *const Framebuffer) };
         self.platform.display_flush(arr);
     }
 
-    /// Push a fast update to the display (or emulated window).
     pub fn display_fast(&mut self) {
         self.platform.display_fast(&self.framebuffer);
     }
 
-    /// Push a paritial framebuffer to the display (or emulated window).
     pub fn display_partial_at(&mut self, canvas: &Canvas, top_left: Point) {
         let size = canvas.size();
         self.platform.display_flush_partial(
@@ -100,7 +84,6 @@ impl XtX4 {
         );
     }
 
-    /// Push a paritial framebuffer to the display (or emulated window).
     pub fn display_partial_clone(&mut self, canvas: &Canvas) {
         let start = canvas.start();
         let size = canvas.size();
@@ -115,12 +98,10 @@ impl XtX4 {
         );
     }
 
-    /// Get the current time in milliseconds
     pub fn now_ms(&self) -> u32 {
         self.platform.now_ms()
     }
 
-    /// Sleep for ms milliseconds, keeping the platform responsive.
     pub fn sleep_ms(&mut self, ms: u32) {
         self.platform.sleep_ms(ms);
     }
@@ -129,7 +110,6 @@ impl XtX4 {
         self.platform.low_power_enable();
     }
 
-    /// Turn off (or close) the device (or app)
     pub fn power_off(&mut self) {
         self.platform.power_off();
     }

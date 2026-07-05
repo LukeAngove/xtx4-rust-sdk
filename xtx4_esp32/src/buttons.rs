@@ -116,3 +116,9 @@ impl Xtx4Buttons
         first & second
     }
 }
+
+impl crate::display_transport::ButtonReader for Xtx4Buttons {
+    fn button_state(&mut self) -> Buttons {
+        self.button_state()
+    }
+}

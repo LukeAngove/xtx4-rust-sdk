@@ -1,78 +1,133 @@
 #![no_std]
 #![no_main]
-use xtx4_platform::{bit_buf, Button, Canvas, XtX4};
-use embedded_graphics::{prelude::*, geometry::Size};
+use embedded_graphics::{
+    mono_font::{ascii::FONT_6X10, MonoTextStyle},
+    prelude::*,
+    primitives::{PrimitiveStyleBuilder, Rectangle},
+    text::Text,
+};
+use xtx4_platform::{bit_buf, Button, Canvas, XtX4, STYLE_BLACK};
 
 #[no_mangle]
 fn main() {
     let mut platform = XtX4::new();
+    platform.log("Started!");
 
-    // Start with white screen
+    let text_style = MonoTextStyle::new(&FONT_6X10, STYLE_BLACK);
+    let line_style = PrimitiveStyleBuilder::new()
+        .stroke_color(STYLE_BLACK)
+        .stroke_width(2)
+        .fill_color(STYLE_BLACK)
+        .build();
     {
         let full_canvas = platform.canvas();
-        full_canvas.fill(0x00);
-    }
-    platform.display_flush();
 
-    let mut auto_mode = false;
-    let mut step_counter = 0;
-    let mut step = 0;
+        full_canvas.fill(0xFF); // start with white screen
+        platform.display_flush();
+    }
+
+    let buf = bit_buf!(0xffu8; (480, 800));
+    let mut canvas = Canvas::new(&buf, Size::new(480, 800));
+    Text::new("Blue, Purple! asdf!", Point::new(10, 20), text_style)
+        .draw(&mut canvas)
+        .expect("Invalid draw!");
+    Text::new(
+            "Luke, Rodger! blue! Still2!",
+            Point::new(20, 30),
+            text_style,
+        )
+        .draw(&mut canvas)
+        .expect("Invalid draw!");
+
+    platform.display_full_flush(&canvas);
+
+    //let buf = bit_buf!(0xffu8; (100, 100));
+    let buf = bit_buf!(0xffu8; (80, 80));
+    let mut canvas = Canvas::new(&buf, Size::new(80,80));
+    //let mut canvas = Canvas::new(&buf, Size::new(100,100));
+    Text::new("Hi!", Point::new(0, 10), text_style).draw(&mut canvas).expect("Invalid draw!");
+    platform.display_partial_at(&canvas, Point::new(40,40));
+
+    platform.log("Starting main loop...");
+
+    let mut counter = 0;
 
     loop {
         let input = platform.update_input();
 
-        // LeftInner (f): reset to white
+        if input.was_pressed(Button::LeftOuter) {
+            // Full refresh - draw black rectangle top left
+            let full_canvas = platform.canvas();
+
+            let [mut top, bottom] = full_canvas.split_vert(&[1, 3]);
+            let [mut bl, mut br] = bottom.split_horz(&[1, 1]);
+
+            let rect =
+                Rectangle::new(Point::new(40, 40), Size::new(100, 100)).into_styled(line_style);
+            rect.draw(&mut top);
+            rect.draw(&mut bl);
+            rect.draw(&mut br);
+            platform.display_fast();
+            //platform.display_flush();
+        }
+
         if input.was_pressed(Button::LeftInner) {
-            step = 0;
-            auto_mode = false;
-            let c = platform.canvas();
-            c.fill(0x00);
+            let full_canvas = platform.canvas();
+            // Full refresh - clear to white
+            full_canvas.fill(0xFF);
             platform.display_flush();
         }
 
-        // RightInner (j): manual advance one step
         if input.was_pressed(Button::RightInner) {
-            let app_y = 380 + step * 20;
-            if app_y + 20 <= 480 {
-                let mut black = bit_buf!(0xffu8; (50, 20));
-                let black = Canvas::new(&mut black, Size::new(50, 20));
-                platform.display_partial_at(&black, Point::new(350, app_y));
-                step += 1;
-            }
+            // Partial refresh - draw small black square
+            let mut small_fb = bit_buf!(0u8; (80, 80));
+            let small_canvas = Canvas::new(&mut small_fb, Size::new(80, 80));
+            platform.display_partial_at(&small_canvas, Point::new(200, 200));
         }
 
-        // RightOuter (k): toggle auto mode
         if input.was_pressed(Button::RightOuter) {
-            auto_mode = !auto_mode;
-            step_counter = 0;
-            if !auto_mode {
-                step = 0;
-                let c = platform.canvas();
-                c.fill(0x00);
-                platform.display_flush();
+            // Partial refresh - clear same region
+            let mut small_fb = bit_buf!(0xffu8; (80, 80));
+            let small_canvas = Canvas::new(&mut small_fb, Size::new(80, 80));
+            platform.display_partial_at(&small_canvas, Point::new(248, 248));
+        }
+
+        if input.was_pressed(Button::SideTop) {
+            // Accumulate ghosting with rapid partial refreshes
+            for i in 0..5i32 {
+                let x = 80 + i * 80;
+                let mut black = bit_buf!(0u8; (40, 40));
+                let black = Canvas::new(&mut black, Size::new(40, 40));
+                let mut white = bit_buf!(0xffu8; (40, 40));
+                let white = Canvas::new(&mut white, Size::new(40, 40));
+                platform.display_partial_at(&black, Point::new(x, 400));
+                platform.display_partial_at(&white, Point::new(x, 400));
             }
         }
 
-        if auto_mode {
-            step_counter += 1;
-            if step_counter >= 50 {
-                step_counter = 0;
-                let app_y = 380 + step * 20;
-                if app_y + 20 <= 480 {
-                    let mut black = bit_buf!(0xffu8; (50, 20));
-                    let black = Canvas::new(&mut black, Size::new(50, 20));
-                    platform.display_partial_at(&black, Point::new(350, app_y));
-                    step += 1;
-                } else {
-                    auto_mode = false;
-                }
+        if input.was_pressed(Button::SideBottom) {
+            // Overlapping partial refreshes at slightly varying positions
+            // to demonstrate ghost accumulation
+            for i in 0..5i32 {
+                let x = 120 + i * 40; // smaller step so regions overlap
+                let mut black = bit_buf!(0; (40, 40));
+                let black = Canvas::new(&mut black, Size::new(40, 40));
+                let mut white = bit_buf!(0xff; (40, 40));
+                let white = Canvas::new(&mut white, Size::new(40, 40));
+                platform.display_partial_at(&black, Point::new(x, 400));
+                platform.display_partial_at(&white, Point::new(x, 400));
             }
         }
 
-        if input.was_any_pressed() {
-            platform.low_power_activate();
-        }
+        //if input.is_pressed(Button::Power) {
+        //    platform.power_off();
+        //}
 
+        if counter % 30 == 0 {
+            platform.log("Loop!");
+            counter = 0;
+        }
+        counter += 1;
         platform.sleep_ms(10);
     }
 }

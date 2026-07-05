@@ -1,18 +1,11 @@
-use esp_hal::{
-    time::Rate,
-    spi::{
-        Mode,
-        master::{Spi, Config, AnySpi},
-    },
-    gpio::{Level, Pull, Input, Output, AnyPin},
-};
-use esp_hal::gpio::InputConfig;
-use esp_hal::gpio::OutputConfig;
+#[cfg(not(target_arch = "x86_64"))]
 use esp_println::{println, print};
+#[cfg(target_arch = "x86_64")]
+use std::{println, print};
 use xtx4_platform_interface::{Buffer};
 use bitflags::bitflags;
 
-use crate::sleep::sleep_ms;
+use crate::display_transport::DisplayTransport;
 
 bitflags! {
     #[derive(Clone, Copy)]
@@ -136,23 +129,8 @@ bitflags! {
     }
 }
 
-pub struct SSD1677Builder {
-    pub spi: AnySpi<'static>, 
-    pub sck: AnyPin<'static>,
-    pub mosi: AnyPin<'static>,
-    pub miso: AnyPin<'static>,
-    pub cs: AnyPin<'static>,
-    pub dc: AnyPin<'static>,
-    pub rst: AnyPin<'static>,
-    pub busy: AnyPin<'static>,
-}
-
-pub struct SSD1677 {
-    spi:          Spi<'static, esp_hal::Blocking>,
-    cs:           Output<'static>,
-    dc:           Output<'static>,
-    rst:          Output<'static>,
-    busy:         Input<'static>,
+pub struct SSD1677<T: DisplayTransport> {
+    pub transport:   T,
     is_screen_on: bool,
 }
 
@@ -161,43 +139,16 @@ fn split_bytes(value: u16) -> (u8, u8) {
     ((value / MAX_BYTE) as u8, (value % MAX_BYTE) as u8)
 }
 
-impl SSD1677 {
-    pub fn new(peripherals: SSD1677Builder) -> Self {
-        let config = Config::default()
-            .with_frequency(Rate::from_mhz(40u32))
-            .with_mode(Mode::_0);
-
-        let spi = Spi::new(peripherals.spi, config)
-            .expect("SPI failed to initialise")
-            .with_sck(peripherals.sck)
-            .with_mosi(peripherals.mosi)
-            .with_miso(peripherals.miso);
-
-        let out_config = OutputConfig::default();
-        let cs   = Output::new(peripherals.cs, Level::High, out_config);
-        let dc   = Output::new(peripherals.dc, Level::High, out_config);
-        let rst  = Output::new(peripherals.rst, Level::High, out_config);
-
-        let busy_config = InputConfig::default().with_pull(Pull::None);
-        let busy = Input::new(peripherals.busy, busy_config);
-
+impl<T: DisplayTransport> SSD1677<T> {
+    pub fn new(transport: T) -> Self {
         Self {
-            spi,
-            cs,
-            dc,
-            rst,
-            busy,
+            transport,
             is_screen_on: false,
         }
     }
 
     pub fn reset(&mut self) {
-        self.rst.set_high();
-        sleep_ms(20);
-        self.rst.set_low();
-        sleep_ms(2);
-        self.rst.set_high();
-        sleep_ms(20);
+        self.transport.reset();
     }
 
     pub fn soft_reset(&mut self) {
@@ -280,8 +231,8 @@ impl SSD1677 {
 
     fn wait_while_busy(&mut self, comment: &str) {
         let mut timeout = 10_000u32;
-        while self.busy.is_high() {
-            sleep_ms(1u32);
+        while self.transport.busy_high() {
+            self.transport.delay_ms(1u32);
             timeout -= 1;
             if timeout == 0 {
                 println!("Timeout waiting for busy: {}", comment);
@@ -297,7 +248,7 @@ impl SSD1677 {
         //    mode |= DisplayUpdate2Commands::EnableClock | DisplayUpdate2Commands::EnableAnalog;
         //    println!("Screen turned on");
         //}
-        let mut mode = 
+        let mode = 
             DisplayUpdate2Commands::EnableClock |
             DisplayUpdate2Commands::EnableAnalog |
             DisplayUpdate2Commands::LoadI2CTemp |
@@ -317,7 +268,7 @@ impl SSD1677 {
         //    mode |= DisplayUpdate2Commands::EnableClock | DisplayUpdate2Commands::EnableAnalog;
         //    println!("Screen turned on");
         //}
-        let mut mode =
+        let mode =
             DisplayUpdate2Commands::EnableClock |
             DisplayUpdate2Commands::EnableAnalog |
             DisplayUpdate2Commands::LoadLUT |
@@ -409,23 +360,14 @@ impl SSD1677 {
 
     fn send_command(&mut self, cmd: SSD1677Command) {
         println!("Command: {:?}", cmd);
-        self.dc.set_low();
-        self.cs.set_low();
-        self.spi.write(&[cmd as u8]).unwrap();
-        self.cs.set_high();
+        self.transport.write_command(cmd as u8);
     }
 
     fn send_byte(&mut self, data: u8) {
-        self.dc.set_high();
-        self.cs.set_low();
-        self.spi.write(&[data]).unwrap();
-        self.cs.set_high();
+        self.transport.write_data(&[data]);
     }
 
     fn send_data(&mut self, data: &Buffer) {
-        self.dc.set_high();
-        self.cs.set_low();
-
         let len = data.as_slice_of_cells().len();
         // SAFETY: read-only, fixed lifetime use
         let data: &[u8] = unsafe { &*(data.as_ptr()) };
@@ -437,16 +379,11 @@ impl SSD1677 {
             println!("");
         }
 
-        self.spi.write(data).unwrap();
-
-        self.cs.set_high();
+        self.transport.write_data(data);
     }
 
     fn recv_data(&mut self, data: &mut Buffer) {
-        self.dc.set_high();
-        self.cs.set_low();
-        let data: &mut [u8] = unsafe { &mut *(data.as_ptr()) };
-        self.spi.read(data);
-        self.cs.set_high();
+        let buf: &mut [u8] = unsafe { &mut *(data.as_ptr()) };
+        self.transport.read_data(buf);
     }
 }

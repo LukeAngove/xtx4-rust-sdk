@@ -1,9 +1,11 @@
-#![no_std]
+#![cfg_attr(not(target_arch = "x86_64"), no_std)]
 
 // This file is a direct port of https://github.com/open-x4-epaper/community-sdk/blob/9f76376a5cc7894cff9ca87bbdd34dab715d8a59/libs/display/EInkDisplay/src/EInkDisplay.cpp
-
-// ESP32-C3 hardware backend — enabled with feature = "esp32".
 //
+// Single crate for both real ESP32 hardware and emulated mock.
+// On x86_64 targets the in-memory mock backend is used; on ESP32 targets
+// (xtensa, riscv32) the real SPI/GPIO hardware backend is used.
+
 // Hardware pin reference (from community SDK):
 //   SPI bus : SCLK=8, MOSI=10
 //   EPD CS  : GPIO 21
@@ -14,20 +16,27 @@
 //   Buttons : resistor ladder on ADC (check SDK for voltage thresholds)
 //   Battery : GPIO 0, voltage divider — ADC read = 0.5 × actual voltage
 
-mod sleep;
+mod display_transport;
 mod ssd1677;
 mod display;
-mod buttons;
 
-use esp_backtrace as _;
+#[cfg(not(target_arch = "x86_64"))]
+mod sleep;
+#[cfg(not(target_arch = "x86_64"))]
+pub mod esp_transport;
+#[cfg(not(target_arch = "x86_64"))]
+pub mod buttons;
 
-use esp_println::println;
-use xtx4_platform_interface::{Buttons, Framebuffer, Buffer, Platform, FRAME_WIDTH, FRAME_HEIGHT, Rectangle, DrawTransform};
+#[cfg(target_arch = "x86_64")]
+pub mod mock_transport;
+#[cfg(target_arch = "x86_64")]
+pub mod emulated;
 
-use crate::ssd1677::{SSD1677, SSD1677Builder, Color};
+use xtx4_platform_interface::{Buttons, Framebuffer, Buffer, Rectangle, FRAME_WIDTH, FRAME_HEIGHT, DrawTransform};
+use xtx4_platform_interface::Platform as PlatformTrait;
+use crate::display_transport::{ButtonReader, DisplayTransport};
+use crate::ssd1677::Color;
 use crate::display::Display;
-use crate::sleep::sleep_ms;
-use crate::buttons::Xtx4Buttons;
 
 // Intentionally inverted, for rotation.
 const DISPLAY_WIDTH: u16  = FRAME_HEIGHT as u16;
@@ -52,67 +61,37 @@ impl DrawTransform for Esp32Transform {
     }
 }
 
-pub struct Esp32Platform {
-    display: Display,
-    buttons: Xtx4Buttons,
+// ── Shared Platform struct ──────────────────────────────────────────────────
+
+pub struct Xtx4Platform<T: DisplayTransport, B: ButtonReader> {
+    display: Display<T>,
+    buttons: B,
 }
 
-impl Esp32Platform {
-    pub fn new() -> Self {
-        let peripherals = esp_hal::init(esp_hal::Config::default());
-
-        let builder = SSD1677Builder {
-            spi: peripherals.SPI2.into(),
-            sck: peripherals.GPIO8.into(),
-            miso: peripherals.GPIO7.into(),
-            mosi: peripherals.GPIO10.into(),
-            cs: peripherals.GPIO21.into(),
-            dc: peripherals.GPIO4.into(),
-            rst: peripherals.GPIO5.into(),
-            busy: peripherals.GPIO6.into(),
-        };
-        let controller = SSD1677::new(builder);
-        let display = Display::new(controller, DISPLAY_WIDTH, DISPLAY_HEIGHT);
-        let buttons = Xtx4Buttons::new(peripherals.ADC1, peripherals.GPIO1, peripherals.GPIO2, peripherals.GPIO3.into());
-
-        Self {
-            display,
-            buttons,
-        }
-    }
-}
-
-impl Platform for Esp32Platform {
+impl<T: DisplayTransport, B: ButtonReader> PlatformTrait for Xtx4Platform<T, B> {
     fn display_flush(&mut self, fb: &Framebuffer) {
-        self.log("display_flush");
-        let full_screen = self.display.full_display_rect();
+        let full = self.display.full_display_rect();
 
-        self.display.write_region(Color::BlackWhite, fb, &full_screen);
-        self.display.write_region(Color::Red, fb, &full_screen);
+        self.display.write_region(Color::BlackWhite, fb, &full);
+        self.display.write_region(Color::Red, fb, &full);
         self.display.read_buffer(Color::BlackWhite);
         self.display.read_buffer(Color::Red);
         self.display.refresh_full();
-        // Writing afterward only seems to be safe (no write to screen) if we disable the clock
-        // and analog in refresh.
     }
 
     fn display_fast(&mut self, fb: &Framebuffer) {
-        self.log("display_fast");
-        let full_screen = self.display.full_display_rect();
+        let full = self.display.full_display_rect();
 
-        self.display.write_region(Color::BlackWhite, fb, &full_screen);
+        self.display.write_region(Color::BlackWhite, fb, &full);
         self.display.read_buffer(Color::BlackWhite);
         self.display.read_buffer(Color::Red);
         self.display.refresh_partial();
-        // Update red buffer so that it's up to date for future partial refreshes.
-        self.display.write_region(Color::Red, fb, &full_screen);
+        self.display.write_region(Color::Red, fb, &full);
     }
 
     fn display_flush_partial(&mut self, fb: &Buffer, frame: &Rectangle) {
-        self.log("display_partial");
         let Rectangle { x, y, w, h } = *frame;
 
-        // Need to transform for display rotation.
         let frame = &Rectangle {
             x: y,
             y: FRAME_WIDTH as u16 - x - w,
@@ -122,7 +101,6 @@ impl Platform for Esp32Platform {
 
         self.display.write_region(Color::BlackWhite, fb, frame);
         self.display.refresh_partial();
-        // Update red buffer so that it's up to date for future partial refreshes.
         self.display.write_region(Color::Red, fb, frame);
     }
 
@@ -131,26 +109,69 @@ impl Platform for Esp32Platform {
     }
 
     fn now_ms(&self) -> u32 {
-        esp_hal::time::Instant::now().duration_since_epoch().as_millis() as u32
+        self.display.controller.transport.millis()
     }
 
     fn sleep_ms(&mut self, ms: u32) {
-        sleep_ms(ms);
+        self.display.controller.transport.delay_ms(ms);
     }
 
     fn log(&mut self, msg: &str) {
-        println!("{}", msg);
+        #[cfg(target_arch = "x86_64")]
+        eprintln!("{}", msg);
+        #[cfg(not(target_arch = "x86_64"))]
+        esp_println::println!("{}", msg);
     }
 
     fn low_power_enable(&mut self) {
         self.display.sleep();
     }
 
-    fn low_power_disable(&mut self) {
-        // No commands needed.
-    }
+    fn low_power_disable(&mut self) {}
 
     fn power_off(&mut self) {
-        todo!()
+        self.display.sleep();
+    }
+}
+
+// ── ESP32 hardware constructor ──────────────────────────────────────────────
+
+#[cfg(not(target_arch = "x86_64"))]
+impl Xtx4Platform<esp_transport::EspTransport, buttons::Xtx4Buttons> {
+    pub fn new() -> Self {
+        let peripherals = esp_hal::init(esp_hal::Config::default());
+
+        let transport = esp_transport::EspTransport::new(esp_transport::EspTransportBuilder {
+            spi: peripherals.SPI2.into(),
+            sck: peripherals.GPIO8.into(),
+            miso: peripherals.GPIO7.into(),
+            mosi: peripherals.GPIO10.into(),
+            cs: peripherals.GPIO21.into(),
+            dc: peripherals.GPIO4.into(),
+            rst: peripherals.GPIO5.into(),
+            busy: peripherals.GPIO6.into(),
+        });
+        let display = Display::new(transport, DISPLAY_WIDTH, DISPLAY_HEIGHT);
+        let buttons = buttons::Xtx4Buttons::new(
+            peripherals.ADC1, peripherals.GPIO1, peripherals.GPIO2, peripherals.GPIO3.into()
+        );
+
+        Self { display, buttons }
+    }
+}
+
+// ── Emulated (x86_64) constructor ────────────────────────────────────────────
+
+#[cfg(target_arch = "x86_64")]
+impl Xtx4Platform<mock_transport::MockTransport, emulated::EmulatedButtons> {
+    pub fn new() -> Self {
+        use emulated::EmulatedButtons;
+
+        let hw = mock_transport::MockHardware::new();
+        let transport = mock_transport::MockTransport::new(hw);
+        let display = Display::new(transport, DISPLAY_WIDTH, DISPLAY_HEIGHT);
+        let buttons = EmulatedButtons::new();
+
+        Self { display, buttons }
     }
 }
