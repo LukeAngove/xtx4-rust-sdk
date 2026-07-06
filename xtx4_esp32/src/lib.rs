@@ -42,9 +42,6 @@ use crate::display_transport::{ButtonReader, DisplayTransport};
 use crate::ssd1677::Color;
 use crate::display::Display;
 
-// Static 0xFF buffer for pre-filling Red RAM before partial refreshes
-static RED_FILL: [u8; 48000] = [0x00; 48000];
-
 // Intentionally inverted, for rotation.
 const DISPLAY_WIDTH: u16  = FRAME_HEIGHT as u16;
 const DISPLAY_HEIGHT: u16 = FRAME_WIDTH as u16;

@@ -349,7 +349,6 @@ impl<T: DisplayTransport> SSD1677<T> {
     }
 
     fn send_data(&mut self, data: &Buffer) {
-        let len = data.as_slice_of_cells().len();
         // SAFETY: read-only, fixed lifetime use
         let data: &[u8] = unsafe { &*(data.as_ptr()) };
 

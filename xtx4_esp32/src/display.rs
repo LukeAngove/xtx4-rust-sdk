@@ -1,8 +1,3 @@
-#[cfg(not(target_arch = "x86_64"))]
-use esp_println::println;
-#[cfg(target_arch = "x86_64")]
-use std::println;
-
 use core::cell::Cell;
 
 use xtx4_platform_interface::{Buffer, Rectangle};
