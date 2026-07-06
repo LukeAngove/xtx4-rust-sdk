@@ -234,6 +234,16 @@ impl<T: DisplayTransport> SSD1677<T> {
         self.wait_while_busy(comment);
     }
 
+    /// Block until BUSY goes low (or timeout).
+    pub fn wait(&mut self, comment: &str) {
+        self.wait_while_busy(comment);
+    }
+
+    /// Returns true if the display controller is busy.
+    pub fn is_busy(&self) -> bool {
+        self.transport.busy_high()
+    }
+
     fn wait_while_busy(&mut self, comment: &str) {
         let start = self.transport.millis();
         if !self.transport.busy_high() {
@@ -262,6 +272,18 @@ impl<T: DisplayTransport> SSD1677<T> {
         self.display(DisplayUpdate1Commands::BypassRed, mode, "full");
     }
 
+    /// Send control registers + MasterActivation for full refresh, no busy wait.
+    pub fn trigger_full(&mut self) {
+        let mut mode = DisplayUpdate2Commands::LoadI2CTemp | DisplayUpdate2Commands::LoadLUT | DisplayUpdate2Commands::DisplayMode1 | DisplayUpdate2Commands::DisplayEnable;
+        if !self.is_screen_on {
+            self.is_screen_on = true;
+            mode |= DisplayUpdate2Commands::EnableClock | DisplayUpdate2Commands::EnableAnalog;
+        }
+        self.display_update_ctrl1(DisplayUpdate1Commands::BypassRed);
+        self.display_update_ctrl2(mode);
+        self.send_command(SSD1677Command::MasterActivation);
+    }
+
     pub fn refresh_partial(&mut self) {
         let mut mode = DisplayUpdate2Commands::LoadLUT | DisplayUpdate2Commands::DisplayMode2 | DisplayUpdate2Commands::DisplayEnable;
         if !self.is_screen_on {
@@ -269,6 +291,18 @@ impl<T: DisplayTransport> SSD1677<T> {
             mode |= DisplayUpdate2Commands::EnableClock | DisplayUpdate2Commands::EnableAnalog;
         }
         self.display(DisplayUpdate1Commands::Normal, mode, "fast");
+    }
+
+    /// Send control registers + MasterActivation for partial refresh, no busy wait.
+    pub fn trigger_partial(&mut self) {
+        let mut mode = DisplayUpdate2Commands::LoadLUT | DisplayUpdate2Commands::DisplayMode2 | DisplayUpdate2Commands::DisplayEnable;
+        if !self.is_screen_on {
+            self.is_screen_on = true;
+            mode |= DisplayUpdate2Commands::EnableClock | DisplayUpdate2Commands::EnableAnalog;
+        }
+        self.display_update_ctrl1(DisplayUpdate1Commands::Normal);
+        self.display_update_ctrl2(mode);
+        self.send_command(SSD1677Command::MasterActivation);
     }
 
     pub fn write_ram(&mut self, color: Color, buffer: &Buffer) {
