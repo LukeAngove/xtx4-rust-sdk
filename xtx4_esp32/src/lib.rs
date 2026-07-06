@@ -93,6 +93,10 @@ impl<T: DisplayTransport, B: ButtonReader> PlatformTrait for Xtx4Platform<T, B> 
 
         self.display.refresh_partial();
 
+        // After swap: Red=fb (correct old state), BW=old Red (mismatched).
+        // Restore invariant: write fb to BW so both match.
+        self.display.write_region(Color::BlackWhite, fb, &full);
+
         // Update current_screen to match new state
         self.current_screen.set(fb.get());
     }
@@ -106,8 +110,6 @@ impl<T: DisplayTransport, B: ButtonReader> PlatformTrait for Xtx4Platform<T, B> 
             w: h,
             h: w,
         };
-
-        let full = self.display.full_display_rect();
 
         // Update current_screen with the window change (landscape stride)
         let stride = DISPLAY_WIDTH as usize / 8;
@@ -123,13 +125,14 @@ impl<T: DisplayTransport, B: ButtonReader> PlatformTrait for Xtx4Platform<T, B> 
             }
         }
 
-        // Write BW = updated current_screen (full screen).
-        // Red already has previous frame's BW data (from the buffer swap)
-        // which is the correct old-state mapping.
-        self.display.write_region(Color::BlackWhite, &self.current_screen, &full);
+        // 1. Write window to BW
+        self.display.write_region(Color::BlackWhite, fb, frame);
 
-        // 4. Refresh partial (only the window gets updated)
+        // 2. Refresh → buffers swap (Red gets this BW, BW gets old Red)
         self.display.refresh_partial();
+
+        // 3. Write same window to BW again → both RAMs match in this region
+        self.display.write_region(Color::BlackWhite, fb, frame);
     }
 
     fn button_state(&mut self) -> Buttons {
