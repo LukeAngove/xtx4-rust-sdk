@@ -167,10 +167,20 @@ impl MockTransport {
         // Table 6-5: (0,0)->Black(0), (0,1)->White(1), (1,0)->Black(0), (1,1)->White(1)
         const LUT: [u8; 4] = [0, 1, 0, 1];
 
+        // Validate rendering invariant: Red must equal BW before refresh.
+        for i in 0..DISPLAY_BYTES / 64 {
+            let r = unsafe { *rdptr.add(i) };
+            let b = unsafe { *bwptr.add(i) };
+            if r != b {
+                eprintln!("FAIL: Red!=BW at byte {}: Red={:02X}, BW={:02X}", i, r, b);
+                break;
+            }
+        }
+
         if self.ctrl1 != CTRL1_BYPASS_RED {
             // Validate: Red should match the current screen before update.
             // If not, the previous Red write didn't complete correctly.
-            for i in 0..DISPLAY_BYTES {
+            for i in 0..DISPLAY_BYTES / 64 {
                 let r = unsafe { *rdptr.add(i) };
                 let s = unsafe { *sptr.add(i) };
                 if r != s {
@@ -195,6 +205,10 @@ impl MockTransport {
 
         // Write PBM output after every refresh
         self.write_pbm();
+
+        // Simulate hardware buffer swap: after MasterActivation,
+        // the controller swaps BW and Red RAM contents.
+        core::mem::swap(&mut self.hw.bw_ram, &mut self.hw.red_ram);
     }
 
     fn write_pbm(&mut self) {
