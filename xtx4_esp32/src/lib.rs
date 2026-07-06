@@ -35,8 +35,7 @@ pub mod mock_transport;
 #[cfg(target_arch = "x86_64")]
 pub mod emulated;
 
-use core::cell::Cell;
-use xtx4_platform_interface::{Buttons, Framebuffer, Buffer, Rectangle, FRAME_WIDTH, FRAME_HEIGHT, FRAME_BYTE_SIZE, DrawTransform};
+use xtx4_platform_interface::{Buttons, Framebuffer, Buffer, Rectangle, FRAME_WIDTH, FRAME_HEIGHT, DrawTransform};
 use xtx4_platform_interface::Platform as PlatformTrait;
 use crate::display_transport::{ButtonReader, DisplayTransport};
 use crate::ssd1677::Color;
@@ -70,7 +69,6 @@ impl DrawTransform for Esp32Transform {
 pub struct Xtx4Platform<T: DisplayTransport, B: ButtonReader> {
     display: Display<T>,
     buttons: B,
-    current_screen: Framebuffer,
 }
 
 impl<T: DisplayTransport, B: ButtonReader> PlatformTrait for Xtx4Platform<T, B> {
@@ -80,7 +78,6 @@ impl<T: DisplayTransport, B: ButtonReader> PlatformTrait for Xtx4Platform<T, B> 
         self.display.write_region(Color::BlackWhite, fb, &full);
         self.display.write_region(Color::Red, fb, &full);
         self.display.refresh_full();
-        self.current_screen.set(fb.get());
     }
 
     fn display_fast(&mut self, fb: &Framebuffer) {
@@ -93,12 +90,8 @@ impl<T: DisplayTransport, B: ButtonReader> PlatformTrait for Xtx4Platform<T, B> 
 
         self.display.refresh_partial();
 
-        // After swap: Red=fb (correct old state), BW=old Red (mismatched).
-        // Restore invariant: write fb to BW so both match.
+        // After swap: Red=fb, BW=old Red. Write fb to BW again to restore invariant.
         self.display.write_region(Color::BlackWhite, fb, &full);
-
-        // Update current_screen to match new state
-        self.current_screen.set(fb.get());
     }
 
     fn display_flush_partial(&mut self, fb: &Buffer, frame: &Rectangle) {
@@ -110,20 +103,6 @@ impl<T: DisplayTransport, B: ButtonReader> PlatformTrait for Xtx4Platform<T, B> 
             w: h,
             h: w,
         };
-
-        // Update current_screen with the window change (landscape stride)
-        let stride = DISPLAY_WIDTH as usize / 8;
-        let fb_stride = (frame.w as usize) / 8;
-        let fb_cells = fb.as_slice_of_cells();
-        let screen_buf: &Buffer = &self.current_screen;
-        let screen_cells = screen_buf.as_slice_of_cells();
-        for row in 0..(frame.h as usize) {
-            let fb_off = row * fb_stride;
-            let scr_off = (frame.y as usize + row) * stride + (frame.x as usize) / 8;
-            for byte in 0..fb_stride {
-                screen_cells[scr_off + byte].set(fb_cells[fb_off + byte].get());
-            }
-        }
 
         // 1. Write window to BW
         self.display.write_region(Color::BlackWhite, fb, frame);
@@ -187,7 +166,7 @@ impl Xtx4Platform<esp_transport::EspTransport, buttons::Xtx4Buttons> {
             peripherals.ADC1, peripherals.GPIO1, peripherals.GPIO2, peripherals.GPIO3.into()
         );
 
-        Self { display, buttons, current_screen: Cell::new([0xFF; FRAME_BYTE_SIZE]) }
+        Self { display, buttons }
     }
 }
 
@@ -203,6 +182,6 @@ impl Xtx4Platform<mock_transport::MockTransport, emulated::EmulatedButtons> {
         let display = Display::new(transport, DISPLAY_WIDTH, DISPLAY_HEIGHT);
         let buttons = EmulatedButtons::new();
 
-        Self { display, buttons, current_screen: Cell::new([0xFF; FRAME_BYTE_SIZE]) }
+        Self { display, buttons }
     }
 }
