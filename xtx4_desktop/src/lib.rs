@@ -279,4 +279,8 @@ impl Platform for DesktopPlatform {
     fn log(&mut self, msg: &str) {
         println!("{}", msg);
     }
+
+    fn low_power_enable(&mut self) {}
+
+    fn low_power_disable(&mut self) {}
 }
