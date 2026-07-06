@@ -19,8 +19,6 @@
 #[cfg(not(target_arch = "x86_64"))]
 use esp_backtrace as _;
 
-mod display_transport;
-mod ssd1677;
 mod display;
 
 #[cfg(not(target_arch = "x86_64"))]
@@ -31,14 +29,12 @@ pub mod esp_transport;
 pub mod buttons;
 
 #[cfg(target_arch = "x86_64")]
-pub mod mock_transport;
-#[cfg(target_arch = "x86_64")]
 pub mod emulated;
 
 use xtx4_platform_interface::{Buttons, Framebuffer, Buffer, Rectangle, FRAME_WIDTH, FRAME_HEIGHT, DrawTransform};
 use xtx4_platform_interface::Platform as PlatformTrait;
-use crate::display_transport::{ButtonReader, DisplayTransport};
-use crate::ssd1677::Color;
+use ssd1677::{ButtonReader, DisplayTransport};
+use ssd1677::Color;
 use crate::display::Display;
 
 // Intentionally inverted, for rotation.
@@ -173,12 +169,12 @@ impl Xtx4Platform<esp_transport::EspTransport, buttons::Xtx4Buttons> {
 // ── Emulated (x86_64) constructor ────────────────────────────────────────────
 
 #[cfg(target_arch = "x86_64")]
-impl Xtx4Platform<mock_transport::MockTransport, emulated::EmulatedButtons> {
+impl Xtx4Platform<ssd1677::mock_transport::MockTransport, emulated::EmulatedButtons> {
     pub fn new() -> Self {
         use emulated::EmulatedButtons;
 
-        let hw = mock_transport::MockHardware::new();
-        let transport = mock_transport::MockTransport::new(hw);
+        let hw = ssd1677::mock_transport::MockHardware::new();
+        let transport = ssd1677::mock_transport::MockTransport::new(hw);
         let display = Display::new(transport, DISPLAY_WIDTH, DISPLAY_HEIGHT);
         let buttons = EmulatedButtons::new();
 

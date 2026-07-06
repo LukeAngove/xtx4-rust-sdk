@@ -14,7 +14,7 @@ use esp_hal::gpio::OutputConfig;
 
 use esp_println::{println, print};
 use crate::sleep::sleep_ms;
-use crate::display_transport::DisplayTransport;
+use ssd1677::DisplayTransport;
 
 pub struct EspTransport {
     spi:  Spi<'static, esp_hal::Blocking>,

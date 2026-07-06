@@ -16,7 +16,7 @@ pub struct XtX4 {
     platform: DesktopPlatform,
 
     #[cfg(all(not(feature = "desktop"), target_arch = "x86_64"))]
-    platform: xtx4_esp32::Xtx4Platform<xtx4_esp32::mock_transport::MockTransport, xtx4_esp32::emulated::EmulatedButtons>,
+    platform: xtx4_esp32::Xtx4Platform<ssd1677::mock_transport::MockTransport, xtx4_esp32::emulated::EmulatedButtons>,
 
     #[cfg(all(not(feature = "desktop"), not(target_arch = "x86_64")))]
     platform: xtx4_esp32::Xtx4Platform<xtx4_esp32::esp_transport::EspTransport, xtx4_esp32::buttons::Xtx4Buttons>,

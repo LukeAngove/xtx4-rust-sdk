@@ -3,6 +3,7 @@ members = [
     "xtx4_platform_interface",
     "xtx4_platform",
     "xtx4_sample",
+    "ssd1677",
 ]
 # Exclude from platform specific targets from build; only build when depended on.
 # Stops build errors on incompatible platforms

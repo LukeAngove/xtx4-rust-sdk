@@ -10,5 +10,6 @@ esp32 = []
 [dependencies]
 xtx4_platform_interface = { path = "../xtx4_platform_interface" }
 xtx4_esp32 = { path = "../xtx4_esp32" }
+ssd1677 = { path = "../ssd1677" }
 xtx4_desktop = { path = "../xtx4_desktop", optional = true }
 embedded-graphics = "0.8"

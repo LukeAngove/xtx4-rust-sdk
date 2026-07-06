@@ -118,7 +118,7 @@ impl Xtx4Buttons
     }
 }
 
-impl crate::display_transport::ButtonReader for Xtx4Buttons {
+impl ssd1677::ButtonReader for Xtx4Buttons {
     fn button_state(&mut self) -> Buttons {
         self.button_state()
     }

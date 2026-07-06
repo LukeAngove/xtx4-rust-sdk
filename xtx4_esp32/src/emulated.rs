@@ -4,7 +4,7 @@ use std::thread;
 use std::time::Duration;
 
 use xtx4_platform_interface::Buttons;
-use crate::display_transport::ButtonReader;
+use ssd1677::ButtonReader;
 
 // ── Raw terminal via stty ────────────────────────────────────────────
 

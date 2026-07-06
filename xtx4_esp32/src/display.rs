@@ -1,8 +1,8 @@
 use core::cell::Cell;
 
 use xtx4_platform_interface::{Buffer, Rectangle};
-use crate::ssd1677::{SSD1677, Color, DriverOutputControlMode, DataEntryMode, Range};
-use crate::display_transport::DisplayTransport;
+use ssd1677::{SSD1677, Color, DriverOutputControlMode, DataEntryMode, Range};
+use ssd1677::DisplayTransport;
 
 pub struct Display<T: DisplayTransport> {
     pub controller: SSD1677<T>,
