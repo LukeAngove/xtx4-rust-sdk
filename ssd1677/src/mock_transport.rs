@@ -45,7 +45,6 @@ pub struct MockTransport {
     hw: MockHardware,
     last_cmd: u8,
     cmd_arg_count: u8,
-    cmd_args: [u8; 4],
     // RAM address state (mimics SSD1677 internal counters)
     x_start: u16,
     x_end: u16,
@@ -55,7 +54,6 @@ pub struct MockTransport {
     y_counter: u16,
     x_inc: bool,
     y_dec: bool,
-    millis_counter: u32,
     // Refresh state tracking
     ctrl1: u8,
     frame_count: u64,
@@ -67,7 +65,6 @@ impl MockTransport {
             hw,
             last_cmd: 0,
             cmd_arg_count: 0,
-            cmd_args: [0; 4],
             x_start: 0,
             x_end: 799,
             y_start: 0,
@@ -76,7 +73,6 @@ impl MockTransport {
             y_counter: 0,
             x_inc: true,
             y_dec: true,
-            millis_counter: 0,
             ctrl1: 0,
             frame_count: 0,
         }

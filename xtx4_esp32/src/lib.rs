@@ -19,8 +19,6 @@
 #[cfg(not(target_arch = "x86_64"))]
 use esp_backtrace as _;
 
-mod display;
-
 #[cfg(not(target_arch = "x86_64"))]
 mod sleep;
 #[cfg(not(target_arch = "x86_64"))]
@@ -33,9 +31,7 @@ pub mod emulated;
 
 use xtx4_platform_interface::{Buttons, Framebuffer, Buffer, Rectangle, FRAME_WIDTH, FRAME_HEIGHT, DrawTransform};
 use xtx4_platform_interface::Platform as PlatformTrait;
-use ssd1677::{ButtonReader, DisplayTransport};
-use ssd1677::Color;
-use crate::display::Display;
+use ssd1677::{ButtonReader, DisplayTransport, Display};
 
 // Intentionally inverted, for rotation.
 const DISPLAY_WIDTH: u16  = FRAME_HEIGHT as u16;
@@ -69,45 +65,15 @@ pub struct Xtx4Platform<T: DisplayTransport, B: ButtonReader> {
 
 impl<T: DisplayTransport, B: ButtonReader> PlatformTrait for Xtx4Platform<T, B> {
     fn display_flush(&mut self, fb: &Framebuffer) {
-        let full = self.display.full_display_rect();
-
-        self.display.write_region(Color::BlackWhite, fb, &full);
-        self.display.write_region(Color::Red, fb, &full);
-        self.display.refresh_full();
+        self.display.flush_full(fb);
     }
 
     fn display_fast(&mut self, fb: &Framebuffer) {
-        let full = self.display.full_display_rect();
-
-        // Write BW with new frame data.
-        // Red already has previous frame's BW data (from the buffer swap)
-        // which is the correct old-state mapping.
-        self.display.write_region(Color::BlackWhite, fb, &full);
-
-        self.display.refresh_partial();
-
-        // After swap: Red=fb, BW=old Red. Write fb to BW again to restore invariant.
-        self.display.write_region(Color::BlackWhite, fb, &full);
+        self.display.fast_full(fb);
     }
 
     fn display_flush_partial(&mut self, fb: &Buffer, frame: &Rectangle) {
-        let Rectangle { x, y, w, h } = *frame;
-
-        let frame = &Rectangle {
-            x: y,
-            y: FRAME_WIDTH as u16 - x - w,
-            w: h,
-            h: w,
-        };
-
-        // 1. Write window to BW
-        self.display.write_region(Color::BlackWhite, fb, frame);
-
-        // 2. Refresh → buffers swap (Red gets this BW, BW gets old Red)
-        self.display.refresh_partial();
-
-        // 3. Write same window to BW again → both RAMs match in this region
-        self.display.write_region(Color::BlackWhite, fb, frame);
+        self.display.flush_partial(fb, frame);
     }
 
     fn button_state(&mut self) -> Buttons {

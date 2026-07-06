@@ -1,8 +1,8 @@
 use core::cell::Cell;
 
-use xtx4_platform_interface::{Buffer, Rectangle};
-use ssd1677::{SSD1677, Color, DriverOutputControlMode, DataEntryMode, Range};
-use ssd1677::DisplayTransport;
+use xtx4_platform_interface::{Buffer, Framebuffer, Rectangle};
+use crate::{SSD1677, Color, DriverOutputControlMode, DataEntryMode, Range};
+use crate::DisplayTransport;
 
 pub struct Display<T: DisplayTransport> {
     pub controller: SSD1677<T>,
@@ -116,12 +116,19 @@ impl<T: DisplayTransport> Display<T> {
         }
     }
 
-    /// Full partial-update: write BW → refresh → write Red (for next cycle).
+    /// Full partial-update using two-phase BW writes (no explicit Red write).
+    /// The hardware swap makes Red=old BW automatically.
     pub fn flush_partial(&mut self, fb: &Buffer, frame: &Rectangle) {
         let rotated = self.rotate_rect(frame);
+
+        // 1. Write window to BW
         self.write_region(Color::BlackWhite, fb, &rotated);
+
+        // 2. Refresh → buffers swap (Red gets this BW, BW gets old Red)
         self.refresh_partial();
-        self.write_region(Color::Red, fb, &rotated);
+
+        // 3. Write same window to BW again → both RAMs match in this region
+        self.write_region(Color::BlackWhite, fb, &rotated);
     }
 
     /// Full display flush (full refresh): write BW + Red → refresh_full.
@@ -132,12 +139,17 @@ impl<T: DisplayTransport> Display<T> {
         self.refresh_full();
     }
 
-    /// Fast partial update of full screen: write BW → refresh_partial → write Red.
-    pub fn fast_full(&mut self, fb: &Buffer) {
+    /// Fast partial update of full screen using two-phase BW writes.
+    pub fn fast_full(&mut self, fb: &Framebuffer) {
         let full = self.full_display_rect();
+
+        // Write BW with new frame data
         self.write_region(Color::BlackWhite, fb, &full);
+
         self.refresh_partial();
-        self.write_region(Color::Red, fb, &full);
+
+        // After swap: Red=fb, BW=old Red. Write fb to BW again to restore invariant.
+        self.write_region(Color::BlackWhite, fb, &full);
     }
 
     pub fn write_region(&mut self, color: Color, buffer: &Buffer, rect: &Rectangle) {
