@@ -111,18 +111,12 @@ impl<T: DisplayTransport, B: ButtonReader> PlatformTrait for Xtx4Platform<T, B> 
             h: w,
         };
 
-        // Write Red = current screen state (mapping: black→0, white→1)
-        // Full screen write to avoid rotation complexity with sub-windows
         let full = self.display.full_display_rect();
+
+        // 1. Write Red = current screen state (mapping: black→0, white→1)
         self.display.write_region(Color::Red, &self.current_screen, &full);
 
-        // Write BW with new frame data for the window
-        self.display.write_region(Color::BlackWhite, fb, frame);
-
-        self.display.refresh_partial();
-
-        // Update current_screen with the new window data
-        // current_screen is in landscape layout — match the rotated frame
+        // 2. Update current_screen with the window change (landscape stride)
         let stride = DISPLAY_WIDTH as usize / 8;
         let fb_stride = (frame.w as usize) / 8;
         let fb_cells = fb.as_slice_of_cells();
@@ -135,6 +129,12 @@ impl<T: DisplayTransport, B: ButtonReader> PlatformTrait for Xtx4Platform<T, B> 
                 screen_cells[scr_off + byte].set(fb_cells[fb_off + byte].get());
             }
         }
+
+        // 3. Write BW = updated current_screen (full screen)
+        self.display.write_region(Color::BlackWhite, &self.current_screen, &full);
+
+        // 4. Refresh partial (only the window gets updated)
+        self.display.refresh_partial();
     }
 
     fn button_state(&mut self) -> Buttons {
