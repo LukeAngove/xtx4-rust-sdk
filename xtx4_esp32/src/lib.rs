@@ -86,11 +86,10 @@ impl<T: DisplayTransport, B: ButtonReader> PlatformTrait for Xtx4Platform<T, B> 
     fn display_fast(&mut self, fb: &Framebuffer) {
         let full = self.display.full_display_rect();
 
-        // Write BW with new frame data
+        // Write BW with new frame data.
+        // Red already has previous frame's BW data (from the buffer swap)
+        // which is the correct old-state mapping.
         self.display.write_region(Color::BlackWhite, fb, &full);
-
-        // Write Red = current screen state (mapping: black→0, white→1)
-        self.display.write_region(Color::Red, &self.current_screen, &full);
 
         self.display.refresh_partial();
 
@@ -110,10 +109,7 @@ impl<T: DisplayTransport, B: ButtonReader> PlatformTrait for Xtx4Platform<T, B> 
 
         let full = self.display.full_display_rect();
 
-        // 1. Write Red = current screen state (mapping: black→0, white→1)
-        self.display.write_region(Color::Red, &self.current_screen, &full);
-
-        // 2. Update current_screen with the window change (landscape stride)
+        // Update current_screen with the window change (landscape stride)
         let stride = DISPLAY_WIDTH as usize / 8;
         let fb_stride = (frame.w as usize) / 8;
         let fb_cells = fb.as_slice_of_cells();
@@ -127,7 +123,9 @@ impl<T: DisplayTransport, B: ButtonReader> PlatformTrait for Xtx4Platform<T, B> 
             }
         }
 
-        // 3. Write BW = updated current_screen (full screen)
+        // Write BW = updated current_screen (full screen).
+        // Red already has previous frame's BW data (from the buffer swap)
+        // which is the correct old-state mapping.
         self.display.write_region(Color::BlackWhite, &self.current_screen, &full);
 
         // 4. Refresh partial (only the window gets updated)
