@@ -97,7 +97,8 @@ impl Xtx4Buttons
             };
         }
 
-        if self.power.is_low() {
+        let power_val = self.power.is_low();
+        if power_val {
             state |= Buttons::POWER;
         }
 

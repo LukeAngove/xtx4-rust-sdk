@@ -35,11 +35,15 @@ pub mod mock_transport;
 #[cfg(target_arch = "x86_64")]
 pub mod emulated;
 
-use xtx4_platform_interface::{bit_buf, Buttons, Framebuffer, Buffer, Rectangle, FRAME_WIDTH, FRAME_HEIGHT, DrawTransform};
+use core::cell::Cell;
+use xtx4_platform_interface::{Buttons, Framebuffer, Buffer, Rectangle, FRAME_WIDTH, FRAME_HEIGHT, FRAME_BYTE_SIZE, DrawTransform};
 use xtx4_platform_interface::Platform as PlatformTrait;
 use crate::display_transport::{ButtonReader, DisplayTransport};
 use crate::ssd1677::Color;
 use crate::display::Display;
+
+// Static 0xFF buffer for pre-filling Red RAM before partial refreshes
+static RED_FILL: [u8; 48000] = [0x00; 48000];
 
 // Intentionally inverted, for rotation.
 const DISPLAY_WIDTH: u16  = FRAME_HEIGHT as u16;
@@ -69,6 +73,7 @@ impl DrawTransform for Esp32Transform {
 pub struct Xtx4Platform<T: DisplayTransport, B: ButtonReader> {
     display: Display<T>,
     buttons: B,
+    current_screen: Framebuffer,
 }
 
 impl<T: DisplayTransport, B: ButtonReader> PlatformTrait for Xtx4Platform<T, B> {
@@ -78,15 +83,22 @@ impl<T: DisplayTransport, B: ButtonReader> PlatformTrait for Xtx4Platform<T, B> 
         self.display.write_region(Color::BlackWhite, fb, &full);
         self.display.write_region(Color::Red, fb, &full);
         self.display.refresh_full();
+        self.current_screen.set(fb.get());
     }
 
     fn display_fast(&mut self, fb: &Framebuffer) {
         let full = self.display.full_display_rect();
 
+        // Write BW with new frame data
         self.display.write_region(Color::BlackWhite, fb, &full);
-        let white = bit_buf!(0xFFu8; (FRAME_WIDTH, FRAME_HEIGHT));
-        self.display.write_region(Color::Red, &white, &full);
+
+        // Write Red = current screen state (mapping: black→0, white→1)
+        self.display.write_region(Color::Red, &self.current_screen, &full);
+
         self.display.refresh_partial();
+
+        // Update current_screen to match new state
+        self.current_screen.set(fb.get());
     }
 
     fn display_flush_partial(&mut self, fb: &Buffer, frame: &Rectangle) {
@@ -99,14 +111,30 @@ impl<T: DisplayTransport, B: ButtonReader> PlatformTrait for Xtx4Platform<T, B> 
             h: w,
         };
 
-        // Write BW with current frame data
+        // Write Red = current screen state (mapping: black→0, white→1)
+        // Full screen write to avoid rotation complexity with sub-windows
+        let full = self.display.full_display_rect();
+        self.display.write_region(Color::Red, &self.current_screen, &full);
+
+        // Write BW with new frame data for the window
         self.display.write_region(Color::BlackWhite, fb, frame);
 
-        // Write Red with 0xFF (matching C++: frameBufferActive always has initial white)
-        let white = bit_buf!(0xFFu8; (40, 40));
-        self.display.write_region(Color::Red, &white, frame);
-
         self.display.refresh_partial();
+
+        // Update current_screen with the new window data
+        // current_screen is in landscape layout — match the rotated frame
+        let stride = DISPLAY_WIDTH as usize / 8;
+        let fb_stride = (frame.w as usize) / 8;
+        let fb_cells = fb.as_slice_of_cells();
+        let screen_buf: &Buffer = &self.current_screen;
+        let screen_cells = screen_buf.as_slice_of_cells();
+        for row in 0..(frame.h as usize) {
+            let fb_off = row * fb_stride;
+            let scr_off = (frame.y as usize + row) * stride + (frame.x as usize) / 8;
+            for byte in 0..fb_stride {
+                screen_cells[scr_off + byte].set(fb_cells[fb_off + byte].get());
+            }
+        }
     }
 
     fn button_state(&mut self) -> Buttons {
@@ -161,7 +189,7 @@ impl Xtx4Platform<esp_transport::EspTransport, buttons::Xtx4Buttons> {
             peripherals.ADC1, peripherals.GPIO1, peripherals.GPIO2, peripherals.GPIO3.into()
         );
 
-        Self { display, buttons }
+        Self { display, buttons, current_screen: Cell::new([0xFF; FRAME_BYTE_SIZE]) }
     }
 }
 
@@ -177,6 +205,6 @@ impl Xtx4Platform<mock_transport::MockTransport, emulated::EmulatedButtons> {
         let display = Display::new(transport, DISPLAY_WIDTH, DISPLAY_HEIGHT);
         let buttons = EmulatedButtons::new();
 
-        Self { display, buttons }
+        Self { display, buttons, current_screen: Cell::new([0xFF; FRAME_BYTE_SIZE]) }
     }
 }
