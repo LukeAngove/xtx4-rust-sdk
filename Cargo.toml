@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "xtx4_buttons",
+    "xtx4_display",
     "xtx4_host",
     "xtx4_platform_interface",
     "xtx4_platform",

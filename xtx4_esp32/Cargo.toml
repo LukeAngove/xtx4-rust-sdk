@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 ssd1677 = { path = "../ssd1677" }
+xtx4_display = { path = "../xtx4_display" }
 xtx4_host = { path = "../xtx4_host" }
 xtx4_buttons = { path = "../xtx4_buttons" }
 xtx4_platform_interface = { path = "../xtx4_platform_interface" }

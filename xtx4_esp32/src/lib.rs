@@ -24,7 +24,8 @@ use esp_println::println;
 use xtx4_platform_interface::{Buttons, Framebuffer, Buffer, Rectangle, FRAME_WIDTH, FRAME_HEIGHT, DrawTransform};
 use xtx4_platform_interface::Platform as PlatformTrait;
 use xtx4_buttons::ButtonReader;
-use ssd1677::{DisplayInterface, Display};
+use ssd1677::Ssd1677Controller;
+use xtx4_display::Display;
 
 // Intentionally inverted, for rotation.
 const DISPLAY_WIDTH: u16  = FRAME_HEIGHT as u16;
@@ -51,24 +52,26 @@ impl DrawTransform for Esp32Transform {
 
 // ── Shared Platform struct ──────────────────────────────────────────────────
 
-pub struct Xtx4PlatformInner<T: DisplayInterface, B: ButtonReader> {
-    display: Display<T>,
+pub struct Xtx4PlatformInner<D: xtx4_display::DisplayController, B: ButtonReader> {
+    display: Display<D>,
     buttons: B,
 }
 
-impl<T: DisplayInterface, B: ButtonReader> Xtx4PlatformInner<T, B> {
-    pub fn new_with(display: Display<T>, buttons: B) -> Self {
+impl<D: xtx4_display::DisplayController, B: ButtonReader> Xtx4PlatformInner<D, B> {
+    pub fn new_with(display: Display<D>, buttons: B) -> Self {
         Self { display, buttons }
     }
 }
 
-impl<T: DisplayInterface, B: ButtonReader> PlatformTrait for Xtx4PlatformInner<T, B> {
+impl<D: xtx4_display::DisplayController, B: ButtonReader> PlatformTrait for Xtx4PlatformInner<D, B> {
     fn display_flush(&mut self, fb: &Framebuffer) {
-        self.display.flush_full(fb);
+        let full = Rectangle { x: 0, y: 0, w: FRAME_WIDTH as u16, h: FRAME_HEIGHT as u16 };
+        self.display.flush_full(fb, &full);
     }
 
     fn display_fast(&mut self, fb: &Framebuffer) {
-        self.display.fast_full(fb);
+        let full = Rectangle { x: 0, y: 0, w: FRAME_WIDTH as u16, h: FRAME_HEIGHT as u16 };
+        self.display.fast_full(fb, &full);
     }
 
     fn display_flush_partial(&mut self, fb: &Buffer, frame: &Rectangle) {
@@ -107,7 +110,7 @@ impl<T: DisplayInterface, B: ButtonReader> PlatformTrait for Xtx4PlatformInner<T
 // ── ESP32 hardware constructor ──────────────────────────────────────────────
 
 #[cfg(not(target_arch = "x86_64"))]
-impl Xtx4PlatformInner<ssd1677::esp_interface::EspInterface, xtx4_buttons::ButtonsAdc> {
+impl Xtx4PlatformInner<Ssd1677Controller<ssd1677::esp_interface::EspInterface>, xtx4_buttons::ButtonsAdc> {
     pub fn new() -> Self {
         let peripherals = esp_hal::init(esp_hal::Config::default());
 
@@ -121,7 +124,8 @@ impl Xtx4PlatformInner<ssd1677::esp_interface::EspInterface, xtx4_buttons::Butto
             rst: peripherals.GPIO5.into(),
             busy: peripherals.GPIO6.into(),
         });
-        let display = Display::new(transport, DISPLAY_WIDTH, DISPLAY_HEIGHT);
+        let controller = Ssd1677Controller::new(transport, DISPLAY_WIDTH, DISPLAY_HEIGHT);
+        let display = Display::new(controller);
         let buttons = xtx4_buttons::ButtonsAdc::new(
             peripherals.ADC1, peripherals.GPIO1, peripherals.GPIO2, peripherals.GPIO3.into()
         );
@@ -131,17 +135,18 @@ impl Xtx4PlatformInner<ssd1677::esp_interface::EspInterface, xtx4_buttons::Butto
 }
 
 #[cfg(not(target_arch = "x86_64"))]
-pub type Xtx4Platform = Xtx4PlatformInner<ssd1677::esp_interface::EspInterface, xtx4_buttons::ButtonsAdc>;
+pub type Xtx4Platform = Xtx4PlatformInner<Ssd1677Controller<ssd1677::esp_interface::EspInterface>, xtx4_buttons::ButtonsAdc>;
 
 // ── Emulated (x86_64) constructor ────────────────────────────────────────────
 
 #[cfg(target_arch = "x86_64")]
-impl Xtx4PlatformInner<ssd1677::pbm_interface::PbmInterface, xtx4_buttons::ButtonsStdin> {
+impl Xtx4PlatformInner<Ssd1677Controller<ssd1677::pbm_interface::PbmInterface>, xtx4_buttons::ButtonsStdin> {
     pub fn new() -> Self {
 
         let hw = ssd1677::pbm_interface::PbmHardware::new();
         let transport = ssd1677::pbm_interface::PbmInterface::new(hw);
-        let display = Display::new(transport, DISPLAY_WIDTH, DISPLAY_HEIGHT);
+        let controller = Ssd1677Controller::new(transport, DISPLAY_WIDTH, DISPLAY_HEIGHT);
+        let display = Display::new(controller);
         let buttons = xtx4_buttons::ButtonsStdin::new();
 
         Self::new_with(display, buttons)
@@ -149,14 +154,15 @@ impl Xtx4PlatformInner<ssd1677::pbm_interface::PbmInterface, xtx4_buttons::Butto
 }
 
 #[cfg(target_arch = "x86_64")]
-pub type Xtx4Platform = Xtx4PlatformInner<ssd1677::pbm_interface::PbmInterface, xtx4_buttons::ButtonsStdin>;
+pub type Xtx4Platform = Xtx4PlatformInner<Ssd1677Controller<ssd1677::pbm_interface::PbmInterface>, xtx4_buttons::ButtonsStdin>;
 
 #[cfg(target_arch = "x86_64")]
-impl Xtx4PlatformInner<ssd1677::pbm_interface::PbmInterface, xtx4_buttons::buttons_mock::MockButtons> {
+impl Xtx4PlatformInner<Ssd1677Controller<ssd1677::pbm_interface::PbmInterface>, xtx4_buttons::buttons_mock::MockButtons> {
     pub fn new_mock() -> Self {
         let hw = ssd1677::pbm_interface::PbmHardware::new();
         let interface = ssd1677::pbm_interface::PbmInterface::new(hw);
-        let display = Display::new(interface, DISPLAY_WIDTH, DISPLAY_HEIGHT);
+        let controller = Ssd1677Controller::new(interface, DISPLAY_WIDTH, DISPLAY_HEIGHT);
+        let display = Display::new(controller);
         Self::new_with(display, xtx4_buttons::buttons_mock::MockButtons::new())
     }
 }

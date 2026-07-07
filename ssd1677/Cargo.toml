@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+xtx4_display = { path = "../xtx4_display" }
 xtx4_platform_interface = { path = "../xtx4_platform_interface" }
 xtx4_host = { path = "../xtx4_host" }
 bitflags = "2"

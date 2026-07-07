@@ -20,7 +20,7 @@ pub struct XtX4 {
 
     #[cfg(feature = "mock")]
     platform: xtx4_esp32::Xtx4PlatformInner<
-        ssd1677::pbm_interface::PbmInterface,
+        ssd1677::Ssd1677Controller<ssd1677::pbm_interface::PbmInterface>,
         xtx4_buttons::buttons_mock::MockButtons,
     >,
 
