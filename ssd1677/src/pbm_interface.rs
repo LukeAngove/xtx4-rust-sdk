@@ -151,6 +151,12 @@ impl PbmInterface {
     }
 
     fn do_refresh(&mut self) {
+        // Flash sequence for full refresh (hardware visual indicator)
+        if self.ctrl1 == CTRL1_BYPASS_RED {
+            self.write_solid_pbm(0xFF); // flash to black (P4: 1=black)
+            self.write_solid_pbm(0x00); // flash to white (P4: 0=white)
+        }
+
         let screen = &self.hw.screen;
         let bw = &self.hw.bw_ram;
         let red = &self.hw.red_ram;
@@ -205,6 +211,18 @@ impl PbmInterface {
         // Simulate hardware buffer swap: after MasterActivation,
         // the controller swaps BW and Red RAM contents.
         core::mem::swap(&mut self.hw.bw_ram, &mut self.hw.red_ram);
+    }
+
+    fn write_solid_pbm(&mut self, fill: u8) {
+        let _ = std::fs::create_dir_all("/tmp/xtx4_frames");
+        let path = format!("/tmp/xtx4_frames/frame_{:04}.pbm", self.frame_count);
+        if let Ok(mut f) = std::fs::File::create(&path) {
+            let _ = f.write_all(b"P4\n480 800\n");
+            let portrait = [fill; DISPLAY_BYTES];
+            let _ = f.write_all(&portrait);
+        }
+        println!("frame_{:04}.pbm written (flash)", self.frame_count);
+        self.frame_count += 1;
     }
 
     fn write_pbm(&mut self) {
