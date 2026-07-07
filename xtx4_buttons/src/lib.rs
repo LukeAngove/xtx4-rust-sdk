@@ -23,3 +23,6 @@ pub use buttons_impl::ButtonsStdin;
 
 #[cfg(target_arch = "x86_64")]
 pub mod buttons_mock;
+
+#[cfg(target_arch = "x86_64")]
+pub mod buttons_minifb;

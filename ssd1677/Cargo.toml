@@ -9,6 +9,10 @@ xtx4_platform_interface = { path = "../xtx4_platform_interface" }
 xtx4_host = { path = "../xtx4_host" }
 bitflags = "2"
 
+[target.'cfg(target_arch = "x86_64")'.dependencies]
+minifb = { version = "0.27", features = ["x11"] }
+xtx4_buttons = { path = "../xtx4_buttons" }
+
 [target.'cfg(target_arch = "riscv32")'.dependencies]
 esp-hal = { version = "1.0.0", features = ["esp32c3", "unstable"] }
 esp-println = { version = "0.12", features = ["esp32c3"] }
