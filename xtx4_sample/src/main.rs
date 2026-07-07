@@ -10,6 +10,22 @@ use xtx4_platform::{bit_buf, Button, Canvas, XtX4, STYLE_BLACK};
 
 #[no_mangle]
 fn main() {
+    #[cfg(feature = "mock")]
+    {
+        use xtx4_buttons::buttons_mock::MockButtons;
+        use xtx4_buttons::ButtonFlags;
+        // Queue the test sequence: all buttons in order.
+        // MockButtons::new() already fills one empty read for XtX4::new().
+        MockButtons::queue(ButtonFlags::LEFT_OUTER);
+        MockButtons::queue(ButtonFlags::LEFT_INNER);
+        MockButtons::queue(ButtonFlags::RIGHT_INNER);
+        MockButtons::queue(ButtonFlags::RIGHT_OUTER);
+        MockButtons::queue(ButtonFlags::RIGHT_INNER); // repeat
+        MockButtons::queue(ButtonFlags::SIDE_TOP);
+        MockButtons::queue(ButtonFlags::SIDE_BOTTOM);
+        MockButtons::queue(ButtonFlags::POWER);
+    }
+
     let mut platform = XtX4::new();
     platform.log("Started!");
 
@@ -119,9 +135,9 @@ fn main() {
             }
         }
 
-        //if input.is_pressed(Button::Power) {
-        //    platform.power_off();
-        //}
+        if input.was_pressed(Button::Power) {
+            platform.power_off();
+        }
 
         if counter % 30 == 0 {
             platform.log("Loop!");

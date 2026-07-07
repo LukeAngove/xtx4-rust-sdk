@@ -18,6 +18,12 @@ pub struct XtX4 {
     #[cfg(feature = "esp32")]
     platform: xtx4_esp32::Xtx4Platform,
 
+    #[cfg(feature = "mock")]
+    platform: xtx4_esp32::Xtx4PlatformInner<
+        ssd1677::pbm_interface::PbmInterface,
+        xtx4_buttons::buttons_mock::MockButtons,
+    >,
+
     input_state_manager: InputStateManager,
     framebuffer: Framebuffer,
 }
@@ -29,6 +35,9 @@ impl XtX4 {
 
         #[cfg(feature = "esp32")]
         let mut platform = xtx4_esp32::Xtx4Platform::new();
+
+        #[cfg(feature = "mock")]
+        let mut platform = xtx4_esp32::Xtx4PlatformInner::new_mock();
 
         let mut input_state_manager = InputStateManager::new();
         input_state_manager.update(&mut platform);

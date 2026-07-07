@@ -9,5 +9,5 @@ pub mod pbm_interface;
 pub mod esp_interface;
 
 pub use display::Display;
-pub use display_interface::{DisplayInterface, ButtonReader};
+pub use display_interface::DisplayInterface;
 pub use ssd1677::*;

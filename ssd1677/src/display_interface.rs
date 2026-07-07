@@ -1,13 +1,6 @@
 // Raw SPI/GPIO abstraction for the SSD1677 driver.
 // Real hardware and emulated mock both implement this trait.
 
-use xtx4_platform_interface::Buttons;
-
-/// Read button state from platform-specific hardware (ADC or stdin).
-pub trait ButtonReader {
-    fn button_state(&mut self) -> Buttons;
-}
-
 /// Low-level transport operations needed by the SSD1677 driver.
 pub trait DisplayInterface {
     /// Set D/C low, CS low, write one command byte, CS high.

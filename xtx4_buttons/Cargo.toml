@@ -1,0 +1,12 @@
+[package]
+name = "xtx4_buttons"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+xtx4_platform_interface = { path = "../xtx4_platform_interface" }
+xtx4_host = { path = "../xtx4_host" }
+
+[target.'cfg(target_arch = "riscv32")'.dependencies]
+nb = "1"
+esp-hal = { version = "1.0.0", features = ["esp32c3", "unstable"] }

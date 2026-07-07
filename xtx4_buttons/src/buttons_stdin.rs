@@ -1,12 +1,12 @@
+// x86_64 button emulation via raw terminal stdin.
+// Sets up a worker thread that reads keystrokes from stdin in raw mode.
+
 use std::io::Read;
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::thread;
-use std::time::Duration;
 
 use xtx4_platform_interface::Buttons;
-use ssd1677::ButtonReader;
-
-// ── Raw terminal via stty ────────────────────────────────────────────
+use crate::ButtonReader;
 
 struct RawMode;
 impl RawMode {
@@ -25,16 +25,14 @@ impl Drop for RawMode {
     }
 }
 
-// ── EmulatedButtons: mirrors Xtx4Buttons but reads from stdin ────────
-
 static LAST_KEY: AtomicU8 = AtomicU8::new(0);
 
-pub struct EmulatedButtons {
+pub struct ButtonsStdin {
     _reader_thread: thread::JoinHandle<()>,
     _raw_guard: RawMode,
 }
 
-impl EmulatedButtons {
+impl ButtonsStdin {
     pub fn new() -> Self {
         let _raw_guard = RawMode::enable();
 
@@ -47,7 +45,7 @@ impl EmulatedButtons {
                         LAST_KEY.store(buf[0], Ordering::Relaxed);
                         if buf[0] == b'q' || buf[0] == b'Q' { break; }
                     }
-                    Err(_) => thread::sleep(Duration::from_millis(10)),
+                    Err(_) => xtx4_host::delay_ms(10),
                 }
             }
         });
@@ -55,7 +53,7 @@ impl EmulatedButtons {
     }
 }
 
-impl ButtonReader for EmulatedButtons {
+impl ButtonReader for ButtonsStdin {
     fn button_state(&mut self) -> Buttons {
         let key = LAST_KEY.swap(0, Ordering::Relaxed);
         if key == b'q' || key == b'Q' {

@@ -4,6 +4,10 @@ name = "xtx4_sample"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+mock = ["xtx4_platform/mock", "dep:xtx4_buttons"]
+
 [dependencies]
 xtx4_platform = { path = "../xtx4_platform", default-features = false }
+xtx4_buttons = { path = "../xtx4_buttons", optional = true }
 embedded-graphics = "0.8"
