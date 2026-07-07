@@ -9,7 +9,7 @@ pub trait ButtonReader {
 }
 
 /// Low-level transport operations needed by the SSD1677 driver.
-pub trait DisplayTransport {
+pub trait DisplayInterface {
     /// Set D/C low, CS low, write one command byte, CS high.
     fn write_command(&mut self, cmd: u8);
     /// Set D/C high, CS low, write data bytes, CS high.
@@ -20,8 +20,4 @@ pub trait DisplayTransport {
     fn reset(&mut self);
     /// Return true if BUSY pin is high (controller busy).
     fn busy_high(&self) -> bool;
-    /// Sleep for `ms` milliseconds.
-    fn delay_ms(&mut self, ms: u32);
-    /// Monotonic millisecond counter (for timeouts).
-    fn millis(&self) -> u32;
 }

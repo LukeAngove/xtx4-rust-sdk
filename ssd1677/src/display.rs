@@ -1,7 +1,7 @@
 use core::cell::Cell;
 
 use xtx4_platform_interface::{Buffer, Framebuffer, Rectangle};
-use crate::{SSD1677, Color, DriverOutputControlMode, DataEntryMode, Range, DisplayTransport};
+use crate::{SSD1677, Color, DriverOutputControlMode, DataEntryMode, Range, DisplayInterface};
 
 /// Refresh mode for non-blocking updates.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -10,7 +10,7 @@ pub enum UpdateMode {
     Fast,
 }
 
-pub struct Display<T: DisplayTransport> {
+pub struct Display<T: DisplayInterface> {
     pub controller: SSD1677<T>,
     width_l: u16,
     height_l: u16,
@@ -19,14 +19,14 @@ pub struct Display<T: DisplayTransport> {
 
 /// Borrows the framebuffer across refresh cycles.
 /// Automatically completes the two-phase write on drop.
-pub struct UpdateGuard<'a, T: DisplayTransport> {
+pub struct UpdateGuard<'a, T: DisplayInterface> {
     display: &'a mut Display<T>,
     fb: &'a Buffer,
     rect_l: Rectangle,
     mode: UpdateMode,
 }
 
-impl<T: DisplayTransport> UpdateGuard<'_, T> {
+impl<T: DisplayInterface> UpdateGuard<'_, T> {
     /// Block until BUSY low, then do the second BW write (fast mode only).
     pub fn wait(self) {
         self.display.controller.wait("fast (wait)");
@@ -40,7 +40,7 @@ impl<T: DisplayTransport> UpdateGuard<'_, T> {
     }
 }
 
-impl<T: DisplayTransport> Drop for UpdateGuard<'_, T> {
+impl<T: DisplayInterface> Drop for UpdateGuard<'_, T> {
     fn drop(&mut self) {
         if self.mode == UpdateMode::Fast {
             self.display.controller.wait("fast (drop)");
@@ -66,7 +66,7 @@ fn portrait_to_landscape(portrait: &Rectangle, height_l: u16) -> Rectangle {
     }
 }
 
-impl<T: DisplayTransport> Display<T> {
+impl<T: DisplayInterface> Display<T> {
     pub fn new(transport: T, width_l: u16, height_l: u16) -> Self {
         let controller = SSD1677::new(transport);
         let mut res = Self { controller, width_l, height_l, ram_region: None };

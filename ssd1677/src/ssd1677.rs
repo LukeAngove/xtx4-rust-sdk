@@ -5,7 +5,7 @@ use std::{println, print};
 use xtx4_platform_interface::{Buffer};
 use bitflags::bitflags;
 
-use crate::display_transport::DisplayTransport;
+use crate::DisplayInterface;
 
 bitflags! {
     #[derive(Clone, Copy)]
@@ -129,7 +129,7 @@ bitflags! {
     }
 }
 
-pub struct SSD1677<T: DisplayTransport> {
+pub struct SSD1677<T: DisplayInterface> {
     pub transport:   T,
     is_screen_on: bool,
 }
@@ -139,7 +139,7 @@ fn split_bytes(value: u16) -> (u8, u8) {
     ((value / MAX_BYTE) as u8, (value % MAX_BYTE) as u8)
 }
 
-impl<T: DisplayTransport> SSD1677<T> {
+impl<T: DisplayInterface> SSD1677<T> {
     pub fn new(transport: T) -> Self {
         Self {
             transport,
@@ -245,22 +245,18 @@ impl<T: DisplayTransport> SSD1677<T> {
     }
 
     fn wait_while_busy(&mut self, comment: &str) {
-        let start = self.transport.millis();
         if !self.transport.busy_high() {
             return;
         }
-        println!("[{}] BUSY=1 (waiting: {})", start, comment);
         let mut timeout = 10_000u32;
         while self.transport.busy_high() {
-            self.transport.delay_ms(1u32);
+            xtx4_host::delay_ms(1);
             timeout -= 1;
             if timeout == 0 {
                 println!("Timeout waiting for busy: {}", comment);
                 return;
             }
         }
-        let done = self.transport.millis();
-        println!("[{}] BUSY=0 (done: {}, {} ms)", done, comment, done - start);
     }
 
     pub fn refresh_full(&mut self) {

@@ -15,11 +15,8 @@ pub struct XtX4 {
     #[cfg(feature = "desktop")]
     platform: DesktopPlatform,
 
-    #[cfg(all(not(feature = "desktop"), target_arch = "x86_64"))]
-    platform: xtx4_esp32::Xtx4Platform<ssd1677::mock_transport::MockTransport, xtx4_esp32::emulated::EmulatedButtons>,
-
-    #[cfg(all(not(feature = "desktop"), not(target_arch = "x86_64")))]
-    platform: xtx4_esp32::Xtx4Platform<xtx4_esp32::esp_transport::EspTransport, xtx4_esp32::buttons::Xtx4Buttons>,
+    #[cfg(feature = "esp32")]
+    platform: xtx4_esp32::Xtx4Platform,
 
     input_state_manager: InputStateManager,
     framebuffer: Framebuffer,
@@ -30,10 +27,7 @@ impl XtX4 {
         #[cfg(feature = "desktop")]
         let mut platform = DesktopPlatform::new();
 
-        #[cfg(all(not(feature = "desktop"), target_arch = "x86_64"))]
-        let mut platform = xtx4_esp32::Xtx4Platform::new();
-
-        #[cfg(all(not(feature = "desktop"), not(target_arch = "x86_64")))]
+        #[cfg(feature = "esp32")]
         let mut platform = xtx4_esp32::Xtx4Platform::new();
 
         let mut input_state_manager = InputStateManager::new();

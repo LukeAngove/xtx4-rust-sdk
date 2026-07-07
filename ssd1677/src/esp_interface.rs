@@ -13,10 +13,10 @@ use esp_hal::gpio::InputConfig;
 use esp_hal::gpio::OutputConfig;
 
 use esp_println::{println, print};
-use crate::sleep::sleep_ms;
-use ssd1677::DisplayTransport;
+use crate::DisplayInterface;
+use xtx4_host;
 
-pub struct EspTransport {
+pub struct EspInterface {
     spi:  Spi<'static, esp_hal::Blocking>,
     cs:   Output<'static>,
     dc:   Output<'static>,
@@ -24,7 +24,7 @@ pub struct EspTransport {
     busy: Input<'static>,
 }
 
-pub struct EspTransportBuilder {
+pub struct EspInterfaceBuilder {
     pub spi:   AnySpi<'static>,
     pub sck:   AnyPin<'static>,
     pub mosi:  AnyPin<'static>,
@@ -35,8 +35,8 @@ pub struct EspTransportBuilder {
     pub busy:  AnyPin<'static>,
 }
 
-impl EspTransport {
-    pub fn new(b: EspTransportBuilder) -> Self {
+impl EspInterface {
+    pub fn new(b: EspInterfaceBuilder) -> Self {
         let config = Config::default()
             .with_frequency(Rate::from_mhz(40u32))
             .with_mode(Mode::_0);
@@ -59,7 +59,7 @@ impl EspTransport {
     }
 }
 
-impl DisplayTransport for EspTransport {
+impl DisplayInterface for EspInterface {
     fn write_command(&mut self, cmd: u8) {
         let t = self.millis();
         println!("[{}] CMD 0x{:02X}", t, cmd);
@@ -108,25 +108,23 @@ impl DisplayTransport for EspTransport {
     }
 
     fn reset(&mut self) {
-        let t = self.millis();
+        let t = xtx4_host::now_ms();
         println!("[{}] RESET", t);
         self.rst.set_high();
-        sleep_ms(20);
+        xtx4_host::delay_ms(20);
         self.rst.set_low();
-        sleep_ms(2);
+        xtx4_host::delay_ms(2);
         self.rst.set_high();
-        sleep_ms(20);
+        xtx4_host::delay_ms(20);
     }
 
     fn busy_high(&self) -> bool {
         self.busy.is_high()
     }
+}
 
-    fn delay_ms(&mut self, ms: u32) {
-        sleep_ms(ms);
-    }
-
+impl EspInterface {
     fn millis(&self) -> u32 {
-        esp_hal::time::Instant::now().duration_since_epoch().as_millis() as u32
+        xtx4_host::now_ms()
     }
 }

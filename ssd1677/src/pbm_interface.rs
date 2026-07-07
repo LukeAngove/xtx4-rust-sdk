@@ -4,7 +4,7 @@
 
 use core::cell::Cell;
 use std::io::Write;
-use crate::display_transport::DisplayTransport;
+use crate::DisplayInterface;
 
 pub const DISPLAY_WIDTH: usize = 800;
 pub const DISPLAY_HEIGHT: usize = 480;
@@ -25,13 +25,13 @@ const CMD_MASTER_ACTIVATION: u8 = 0x20;
 
 const CTRL1_BYPASS_RED: u8 = 0x40;
 
-pub struct MockHardware {
+pub struct PbmHardware {
     pub bw_ram: Cell<[u8; DISPLAY_BYTES]>,
     pub red_ram: Cell<[u8; DISPLAY_BYTES]>,
     pub screen: Cell<[u8; DISPLAY_BYTES]>,
 }
 
-impl MockHardware {
+impl PbmHardware {
     pub fn new() -> Self {
         Self {
             bw_ram: Cell::new([0x00; DISPLAY_BYTES]),
@@ -41,8 +41,8 @@ impl MockHardware {
     }
 }
 
-pub struct MockTransport {
-    hw: MockHardware,
+pub struct PbmInterface {
+    hw: PbmHardware,
     last_cmd: u8,
     cmd_arg_count: u8,
     // RAM address state (mimics SSD1677 internal counters)
@@ -59,8 +59,8 @@ pub struct MockTransport {
     frame_count: u64,
 }
 
-impl MockTransport {
-    pub fn new(hw: MockHardware) -> Self {
+impl PbmInterface {
+    pub fn new(hw: PbmHardware) -> Self {
         Self {
             hw,
             last_cmd: 0,
@@ -78,7 +78,7 @@ impl MockTransport {
         }
     }
 
-    pub fn inner_ref(&self) -> &MockHardware {
+    pub fn inner_ref(&self) -> &PbmHardware {
         &self.hw
     }
 
@@ -243,7 +243,7 @@ impl MockTransport {
     }
 }
 
-impl DisplayTransport for MockTransport {
+impl DisplayInterface for PbmInterface {
     fn write_command(&mut self, cmd: u8) {
         self.last_cmd = cmd;
         self.cmd_arg_count = 0;
@@ -365,16 +365,5 @@ impl DisplayTransport for MockTransport {
 
     fn busy_high(&self) -> bool {
         false
-    }
-
-    fn delay_ms(&mut self, ms: u32) {
-        std::thread::sleep(std::time::Duration::from_millis(ms as u64));
-    }
-
-    fn millis(&self) -> u32 {
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_millis() as u32
     }
 }
