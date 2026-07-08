@@ -79,13 +79,30 @@ fn main() {
             if input.was_pressed(Button::LeftInner)  { pwr_action = Some(2); }
             if input.was_pressed(Button::RightInner) { pwr_action = Some(3); }
             if input.was_pressed(Button::RightOuter) { pwr_action = Some(4); }
+            // CPU calibration: fires immediately
+            if input.was_pressed(Button::SideTop) {
+                let start = platform.now_ms();
+                let mut count: u32 = 0;
+                while platform.now_ms() - start < 500 {
+                    count = count.wrapping_add(1);
+                }
+                let chars = b"0123456789ABCDEF";
+                let mut buf = [b'0'; 8];
+                let mut n = count as usize;
+                for i in 0..8 {
+                    buf[7 - i] = chars[n & 0xF];
+                    n >>= 4;
+                }
+                let s = unsafe { core::str::from_utf8_unchecked(&buf) };
+                platform.log(s);
+            }
         }
 
         // Fire action on POWER release.
         if input.was_released(Button::Power) {
             match pwr_action {
-                Some(1) => { platform.low_power_enable(); platform.log("Low power ON"); }
-                Some(2) => { platform.low_power_disable(); platform.log("Low power OFF"); }
+                Some(1) => platform.low_power_enable(),
+                Some(2) => platform.low_power_disable(),
                 Some(3) => { platform.light_sleep(); platform.log("Woke from light sleep"); }
                 Some(4) => platform.power_off(),
                 _ => {}

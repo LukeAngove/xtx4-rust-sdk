@@ -42,7 +42,19 @@ impl Host {
     }
 
     /// Lower CPU frequency to save power while staying active.
-    pub fn set_low_power(&mut self, _enabled: bool) {
-        // TODO: implement via RTC clock register writes
+    /// 10MHz via XTAL/4 when enabled, 80MHz PLL when disabled.
+    /// Matches IDF: rtc_clk_cpu_freq_to_xtal(10,4) / rtc_clk_cpu_freq_to_pll_mhz(80)
+    pub fn set_low_power(&mut self, enabled: bool) {
+        let sys = esp_hal::peripherals::SYSTEM::regs();
+        if enabled {
+            esp_hal::rom::ets_update_cpu_frequency_rom(10);
+            sys.sysclk_conf().modify(|_, w| unsafe { w.pre_div_cnt().bits(3) });
+            sys.sysclk_conf().modify(|_, w| unsafe { w.soc_clk_sel().bits(0) });
+        } else {
+            sys.sysclk_conf().modify(|_, w| unsafe { w.pre_div_cnt().bits(0) });
+            sys.sysclk_conf().modify(|_, w| unsafe { w.soc_clk_sel().bits(1) });
+            sys.cpu_per_conf().modify(|_, w| unsafe { w.cpuperiod_sel().bits(0) });
+            esp_hal::rom::ets_update_cpu_frequency_rom(80);
+        }
     }
 }
