@@ -55,11 +55,12 @@ impl DrawTransform for Esp32Transform {
 pub struct Xtx4PlatformInner<D: xtx4_display::DisplayController, B: ButtonReader> {
     display: Display<D>,
     buttons: B,
+    host: xtx4_host::Host,
 }
 
 impl<D: xtx4_display::DisplayController, B: ButtonReader> Xtx4PlatformInner<D, B> {
-    pub fn new_with(display: Display<D>, buttons: B) -> Self {
-        Self { display, buttons }
+    pub fn new_with(display: Display<D>, buttons: B, host: xtx4_host::Host) -> Self {
+        Self { display, buttons, host }
     }
 }
 
@@ -96,14 +97,23 @@ impl<D: xtx4_display::DisplayController, B: ButtonReader> PlatformTrait for Xtx4
 
     fn low_power_enable(&mut self) {
         self.display.sleep();
+        self.host.set_low_power(true);
     }
 
-    fn low_power_disable(&mut self) {}
+    fn low_power_disable(&mut self) {
+        self.host.set_low_power(false);
+        self.display.wake(false);
+    }
+
+    fn light_sleep(&mut self) {
+        self.display.sleep();
+        self.host.light_sleep();
+        self.display.wake(false);
+    }
 
     fn power_off(&mut self) {
         self.display.sleep();
-        #[cfg(target_arch = "x86_64")]
-        std::process::exit(0);
+        self.host.deep_sleep();
     }
 }
 
@@ -126,11 +136,15 @@ impl Xtx4PlatformInner<Ssd1677Controller<ssd1677::esp_interface::EspInterface>, 
         });
         let controller = Ssd1677Controller::new(transport, DISPLAY_WIDTH, DISPLAY_HEIGHT);
         let display = Display::new(controller);
+        // Configure power-pin Input for ButtonsAdc.
+        use esp_hal::gpio::{Input, InputConfig, Pull};
+        let power = Input::new(peripherals.GPIO3, InputConfig::default().with_pull(Pull::Up));
         let buttons = xtx4_buttons::ButtonsAdc::new(
-            peripherals.ADC1, peripherals.GPIO1, peripherals.GPIO2, peripherals.GPIO3.into()
+            peripherals.ADC1, peripherals.GPIO1, peripherals.GPIO2, power
         );
+        let host = xtx4_host::Host::new(peripherals.LPWR, 3);
 
-        Self::new_with(display, buttons)
+        Self::new_with(display, buttons, host)
     }
 }
 
@@ -148,8 +162,9 @@ impl Xtx4PlatformInner<Ssd1677Controller<ssd1677::pbm_interface::PbmInterface>, 
         let controller = Ssd1677Controller::new(transport, DISPLAY_WIDTH, DISPLAY_HEIGHT);
         let display = Display::new(controller);
         let buttons = xtx4_buttons::ButtonsStdin::new();
+        let host = xtx4_host::Host::new();
 
-        Self::new_with(display, buttons)
+        Self::new_with(display, buttons, host)
     }
 }
 
@@ -163,7 +178,8 @@ impl Xtx4PlatformInner<Ssd1677Controller<ssd1677::pbm_interface::PbmInterface>, 
         let interface = ssd1677::pbm_interface::PbmInterface::new(hw);
         let controller = Ssd1677Controller::new(interface, DISPLAY_WIDTH, DISPLAY_HEIGHT);
         let display = Display::new(controller);
-        Self::new_with(display, xtx4_buttons::buttons_mock::MockButtons::new())
+        let host = xtx4_host::Host::new();
+        Self::new_with(display, xtx4_buttons::buttons_mock::MockButtons::new(), host)
     }
 }
 

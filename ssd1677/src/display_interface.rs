@@ -13,4 +13,7 @@ pub trait DisplayInterface {
     fn reset(&mut self);
     /// Return true if BUSY pin is high (controller busy).
     fn busy_high(&self) -> bool;
+
+    /// Verify internal state invariant (mock only; real hardware no-op).
+    fn verify_invariant(&self, _label: &str) {}
 }

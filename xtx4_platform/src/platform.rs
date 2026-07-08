@@ -58,7 +58,8 @@ impl XtX4 {
             let controller = ssd1677::Ssd1677Controller::new(interface, display_w, display_h);
             let display = xtx4_display::Display::new(controller);
             let buttons = xtx4_buttons::buttons_minifb::MinifbButtons::new(window);
-            xtx4_esp32::Xtx4PlatformInner::new_with(display, buttons)
+            let host = xtx4_host::Host::new();
+            xtx4_esp32::Xtx4PlatformInner::new_with(display, buttons, host)
         };
 
         let mut input_state_manager = InputStateManager::new();
@@ -131,8 +132,16 @@ impl XtX4 {
         self.platform.sleep_ms(ms);
     }
 
-    pub fn low_power_activate(&mut self) {
+    pub fn low_power_enable(&mut self) {
         self.platform.low_power_enable();
+    }
+
+    pub fn low_power_disable(&mut self) {
+        self.platform.low_power_disable();
+    }
+
+    pub fn light_sleep(&mut self) {
+        self.platform.light_sleep();
     }
 
     pub fn power_off(&mut self) {

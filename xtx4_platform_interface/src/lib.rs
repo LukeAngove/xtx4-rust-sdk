@@ -75,6 +75,9 @@ pub trait Platform {
     /// Leave lite sleep mode for device.
     fn low_power_disable(&mut self);
 
+    /// Enter light sleep. CPU pauses, RAM preserved.
+    fn light_sleep(&mut self);
+
     /// Turn off (or close) the device (or app)
     fn power_off(&mut self);
 

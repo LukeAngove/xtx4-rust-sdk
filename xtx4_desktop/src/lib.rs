@@ -283,4 +283,6 @@ impl Platform for DesktopPlatform {
     fn low_power_enable(&mut self) {}
 
     fn low_power_disable(&mut self) {}
+
+    fn light_sleep(&mut self) {}
 }

@@ -50,22 +50,7 @@ impl<T: DisplayInterface> Ssd1677Controller<T> {
     }
 
     fn init(&mut self) {
-        self.chip.reset();
-        self.chip.soft_reset();
-        self.chip.set_temp_sensor(0x80);
-
-        let command = Cell::new([0xAEu8, 0xC7, 0xC3, 0xC0, 0x40]);
-        self.chip.booster_soft_start(&command);
-
-        self.chip
-            .driver_output_control(self.height_l, DriverOutputControlMode::SM);
-        self.chip.set_border_waveform(0x01);
-
-        let full = self.full_rect_l();
-        self.set_ram_area(&full);
-
-        self.chip.auto_write_ram(Color::BlackWhite, 0xF7);
-        self.chip.auto_write_ram(Color::Red, 0xF7);
+        self.wake(true);
     }
 
     pub fn set_ram_area(&mut self, region_l: &Rectangle) {
@@ -121,27 +106,67 @@ impl<T: DisplayInterface> Ssd1677Controller<T> {
 }
 
 impl<T: DisplayInterface> DisplayController for Ssd1677Controller<T> {
-    fn start_update(&mut self, fb: &Buffer, rect_p: &Rectangle, mode: UpdateMode) {
+    fn wake(&mut self, clear_display: bool) {
+        self.chip.reset();
+        self.chip.soft_reset();
+        self.chip.set_temp_sensor(0x80);
+
+        let command = Cell::new([0xAEu8, 0xC7, 0xC3, 0xC0, 0x40]);
+        self.chip.booster_soft_start(&command);
+
+        self.chip
+            .driver_output_control(self.height_l, DriverOutputControlMode::SM);
+        self.chip.set_border_waveform(0x01);
+
+        if clear_display {
+            let full = self.full_rect_l();
+            self.set_ram_area(&full);
+            self.chip.auto_write_ram(Color::BlackWhite, 0xFF);
+            self.chip.auto_write_ram(Color::Red, 0xFF);
+        }
+
+        self.chip.trigger(true);
+    }
+
+    fn sleep(&mut self) {
+        self.chip.screen_sleep();
+    }
+
+    fn is_asleep(&self) -> bool {
+        !self.chip.is_screen_on()
+    }
+
+    fn start_update(&mut self, fb: &Buffer, rect_p: &Rectangle, mode: UpdateMode) -> bool {
+        if self.is_asleep() {
+            return false;
+        }
+        self.chip.verify_invariant("pre start_update");
+        self.wait_while_busy();
         let rect_l = portrait_to_landscape(rect_p, self.height_l);
 
         match mode {
             UpdateMode::Full => {
                 self.write_region(Color::BlackWhite, fb, &rect_l);
                 self.write_region(Color::Red, fb, &rect_l);
-                self.chip.trigger_full();
+                self.chip.trigger(true);
             }
             UpdateMode::Fast => {
                 self.write_region(Color::BlackWhite, fb, &rect_l);
-                self.chip.trigger_partial();
+                self.chip.trigger(false);
             }
         }
+        true
     }
 
     fn finish_update(&mut self, fb: &Buffer, rect_p: &Rectangle, mode: UpdateMode) {
+        if self.is_asleep() {
+            return;
+        }
         if mode == UpdateMode::Fast {
             let rect_l = portrait_to_landscape(rect_p, self.height_l);
             self.write_region(Color::BlackWhite, fb, &rect_l);
         }
+        self.chip.verify_invariant("post finish_update");
     }
 
     fn is_busy(&self) -> bool {
@@ -149,10 +174,6 @@ impl<T: DisplayInterface> DisplayController for Ssd1677Controller<T> {
     }
 
     fn wait_while_busy(&mut self) {
-        self.chip.wait("controller");
-    }
-
-    fn sleep(&mut self) {
-        self.chip.screen_sleep();
+        self.chip.wait("controller wait_while_busy");
     }
 }

@@ -164,33 +164,7 @@ impl PbmInterface {
         let bwptr: *const u8 = bw.as_ptr() as *const u8;
         let rdptr: *const u8 = red.as_ptr() as *const u8;
 
-        // Lookup table: result bit for each (R, BW) pair
-        // Index: bit 1 = R, bit 0 = BW
-        // Table 6-5: (0,0)->Black(0), (0,1)->White(1), (1,0)->Black(0), (1,1)->White(1)
         const LUT: [u8; 4] = [0, 1, 0, 1];
-
-        // Validate rendering invariant: Red must equal BW before refresh.
-        for i in 0..DISPLAY_BYTES / 64 {
-            let r = unsafe { *rdptr.add(i) };
-            let b = unsafe { *bwptr.add(i) };
-            if r != b {
-                eprintln!("FAIL: Red!=BW at byte {}: Red={:02X}, BW={:02X}", i, r, b);
-                break;
-            }
-        }
-
-        if self.ctrl1 != CTRL1_BYPASS_RED {
-            // Validate: Red should match the current screen before update.
-            // If not, the previous Red write didn't complete correctly.
-            for i in 0..DISPLAY_BYTES / 64 {
-                let r = unsafe { *rdptr.add(i) };
-                let s = unsafe { *sptr.add(i) };
-                if r != s {
-                    eprintln!("Red/Screen mismatch at byte {}: Red={:02X}, Screen={:02X}", i, r, s);
-                    break;
-                }
-            }
-        }
 
         for i in 0..DISPLAY_BYTES {
             let b = unsafe { *bwptr.add(i) };
@@ -262,6 +236,23 @@ impl PbmInterface {
 }
 
 impl DisplayInterface for PbmInterface {
+    fn verify_invariant(&self, label: &str) {
+        let bw = &self.hw.bw_ram;
+        let red = &self.hw.red_ram;
+        let bwptr: *const u8 = bw.as_ptr() as *const u8;
+        let rdptr: *const u8 = red.as_ptr() as *const u8;
+        for i in 0..DISPLAY_BYTES {
+            let r = unsafe { *rdptr.add(i) };
+            let b = unsafe { *bwptr.add(i) };
+            if r != b {
+                panic!(
+                    "Invariant broken at {}: byte {} Red={:02X} BW={:02X}",
+                    label, i, r, b
+                );
+            }
+        }
+    }
+
     fn write_command(&mut self, cmd: u8) {
         self.last_cmd = cmd;
         self.cmd_arg_count = 0;

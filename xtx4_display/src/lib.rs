@@ -16,7 +16,7 @@ pub enum UpdateMode {
 /// the caller uses — the controller handles internal transforms.
 pub trait DisplayController {
     /// Begin a refresh cycle.
-    fn start_update(&mut self, fb: &Buffer, rect: &Rectangle, mode: UpdateMode);
+    fn start_update(&mut self, fb: &Buffer, rect: &Rectangle, mode: UpdateMode) -> bool;
 
     /// Complete a refresh cycle after BUSY goes low.
     fn finish_update(&mut self, fb: &Buffer, rect: &Rectangle, mode: UpdateMode);
@@ -29,6 +29,13 @@ pub trait DisplayController {
 
     /// Put the controller into deep-sleep / low-power mode.
     fn sleep(&mut self);
+
+    /// Full re-initialization after waking from sleep.
+    /// If `clear_display` is true, clear to white.
+    fn wake(&mut self, clear_display: bool);
+
+    /// Returns true if the controller is in sleep mode.
+    fn is_asleep(&self) -> bool;
 }
 
 /// Holds a framebuffer borrow across a refresh cycle.
@@ -84,17 +91,16 @@ impl<D: DisplayController> Display<D> {
         fb: &'a Buffer,
         rect: &Rectangle,
         mode: UpdateMode,
-    ) -> UpdateGuard<'a, D> {
-        // Wait for previous refresh before writing RAM.
-        self.controller.wait_while_busy();
-
-        self.controller.start_update(fb, rect, mode);
-
-        UpdateGuard {
-            display: self,
-            fb,
-            rect: *rect,
-            mode,
+    ) -> Option<UpdateGuard<'a, D>> {
+        if self.controller.start_update(fb, rect, mode) {
+            Some(UpdateGuard {
+                display: self,
+                fb,
+                rect: *rect,
+                mode,
+            })
+        } else {
+            None
         }
     }
 
@@ -109,21 +115,32 @@ impl<D: DisplayController> Display<D> {
     // ── Blocking convenience wrappers ─────────────────────────────────
 
     pub fn flush_full(&mut self, fb: &Buffer, rect: &Rectangle) {
-        let guard = self.update(fb, rect, UpdateMode::Full);
-        guard.wait();
+        if let Some(g) = self.update(fb, rect, UpdateMode::Full) {
+            g.wait();
+        }
     }
 
     pub fn flush_partial(&mut self, fb: &Buffer, rect: &Rectangle) {
-        let guard = self.update(fb, rect, UpdateMode::Fast);
-        guard.wait();
+        if let Some(g) = self.update(fb, rect, UpdateMode::Fast) {
+            g.wait();
+        }
     }
 
     pub fn fast_full(&mut self, fb: &Buffer, rect: &Rectangle) {
-        let guard = self.update(fb, rect, UpdateMode::Fast);
-        guard.wait();
+        if let Some(g) = self.update(fb, rect, UpdateMode::Fast) {
+            g.wait();
+        }
     }
 
     pub fn sleep(&mut self) {
         self.controller.sleep();
+    }
+
+    pub fn wake(&mut self, clear_display: bool) {
+        self.controller.wake(clear_display);
+    }
+
+    pub fn is_asleep(&self) -> bool {
+        self.controller.is_asleep()
     }
 }

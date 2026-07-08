@@ -3,7 +3,7 @@
 // plus power button via digital input.
 
 use esp_hal::analog::adc::{Adc, AdcConfig, Attenuation, AdcPin, AdcChannel, AdcCalBasic, AdcCalScheme, RegisterAccess};
-use esp_hal::gpio::{Pull, Input, AnyPin, InputConfig};
+use esp_hal::gpio::{Input};
 use esp_hal::peripherals::{ADC1, GPIO1, GPIO2};
 use esp_hal::Blocking;
 use xtx4_platform_interface::Buttons;
@@ -41,15 +41,11 @@ pub struct ButtonsAdc {
 }
 
 impl ButtonsAdc {
-    pub fn new(adc: ADC1<'static>, face_pin: GPIO1<'static>, side_pin: GPIO2<'static>, power: AnyPin<'static>) -> Self {
+    pub fn new(adc: ADC1<'static>, face_pin: GPIO1<'static>, side_pin: GPIO2<'static>, power: Input<'static>) -> Self {
         let mut adc_config = AdcConfig::new();
         let face_pin = adc_config.enable_pin_with_cal::<_, AdcCalBasic<ADC1<'static>>>(face_pin, Attenuation::_11dB);
         let side_pin = adc_config.enable_pin_with_cal::<_, AdcCalBasic<ADC1<'static>>>(side_pin, Attenuation::_11dB);
         let adc = Adc::new(adc, adc_config);
-
-        let power_config = InputConfig::default().with_pull(Pull::Up);
-        let power = Input::new(power, power_config);
-
         Self { adc, face_pin, side_pin, power }
     }
 

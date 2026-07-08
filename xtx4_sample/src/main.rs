@@ -23,7 +23,16 @@ fn main() {
         MockButtons::queue(ButtonFlags::RIGHT_INNER); // repeat
         MockButtons::queue(ButtonFlags::SIDE_TOP);
         MockButtons::queue(ButtonFlags::SIDE_BOTTOM);
-        MockButtons::queue(ButtonFlags::POWER);
+        // Power-management demos (hold POWER + face button, fire on release).
+        // Each combo requires two reads: pressed (POWER|btn) then empty (release).
+        MockButtons::queue(ButtonFlags::POWER | ButtonFlags::LEFT_OUTER);
+        MockButtons::queue(ButtonFlags::empty());  // release → low_power_enable
+        MockButtons::queue(ButtonFlags::POWER | ButtonFlags::LEFT_INNER);
+        MockButtons::queue(ButtonFlags::empty());  // release → low_power_disable
+        MockButtons::queue(ButtonFlags::POWER | ButtonFlags::RIGHT_INNER);
+        MockButtons::queue(ButtonFlags::empty());  // release → light_sleep
+        MockButtons::queue(ButtonFlags::POWER | ButtonFlags::RIGHT_OUTER);
+        MockButtons::queue(ButtonFlags::empty());  // release → power_off
     }
 
     let mut platform = XtX4::new();
@@ -35,12 +44,6 @@ fn main() {
         .stroke_width(2)
         .fill_color(STYLE_BLACK)
         .build();
-    {
-        let full_canvas = platform.canvas();
-
-        full_canvas.fill(0xFF); // start with white screen
-        platform.display_flush();
-    }
 
     let buf = bit_buf!(0xffu8; (480, 800));
     let mut canvas = Canvas::new(&buf, Size::new(480, 800));
@@ -57,86 +60,96 @@ fn main() {
 
     platform.display_full_flush(&canvas);
 
-    //let buf = bit_buf!(0xffu8; (100, 100));
     let buf = bit_buf!(0xffu8; (80, 80));
     let mut canvas = Canvas::new(&buf, Size::new(80,80));
-    //let mut canvas = Canvas::new(&buf, Size::new(100,100));
     Text::new("Hi!", Point::new(0, 10), text_style).draw(&mut canvas).expect("Invalid draw!");
     platform.display_partial_at(&canvas, Point::new(40,40));
 
     platform.log("Starting main loop...");
 
+    let mut pwr_action: Option<u8> = None;
     let mut counter = 0;
 
     loop {
         let input = platform.update_input();
 
-        if input.was_pressed(Button::LeftOuter) {
-            // Full refresh - draw black rectangle top left
-            let full_canvas = platform.canvas();
-
-            let [mut top, bottom] = full_canvas.split_vert(&[1, 3]);
-            let [mut bl, mut br] = bottom.split_horz(&[1, 1]);
-
-            let rect =
-                Rectangle::new(Point::new(40, 40), Size::new(100, 100)).into_styled(line_style);
-            rect.draw(&mut top);
-            rect.draw(&mut bl);
-            rect.draw(&mut br);
-            platform.display_fast();
-            //platform.display_flush();
+        // Record combo during POWER hold.
+        if input.is_pressed(Button::Power) {
+            if input.was_pressed(Button::LeftOuter)  { pwr_action = Some(1); }
+            if input.was_pressed(Button::LeftInner)  { pwr_action = Some(2); }
+            if input.was_pressed(Button::RightInner) { pwr_action = Some(3); }
+            if input.was_pressed(Button::RightOuter) { pwr_action = Some(4); }
         }
 
-        if input.was_pressed(Button::LeftInner) {
-            let full_canvas = platform.canvas();
-            // Full refresh - clear to white
-            full_canvas.fill(0xFF);
-            platform.display_flush();
-        }
-
-        if input.was_pressed(Button::RightInner) {
-            // Partial refresh - draw small black square
-            let mut small_fb = bit_buf!(0u8; (80, 80));
-            let small_canvas = Canvas::new(&mut small_fb, Size::new(80, 80));
-            platform.display_partial_at(&small_canvas, Point::new(200, 200));
-        }
-
-        if input.was_pressed(Button::RightOuter) {
-            // Partial refresh - clear same region
-            let mut small_fb = bit_buf!(0xffu8; (80, 80));
-            let small_canvas = Canvas::new(&mut small_fb, Size::new(80, 80));
-            platform.display_partial_at(&small_canvas, Point::new(248, 248));
-        }
-
-        if input.was_pressed(Button::SideTop) {
-            // Accumulate ghosting with rapid partial refreshes
-            for i in 0..5i32 {
-                let x = 80 + i * 80;
-                let mut black = bit_buf!(0u8; (40, 40));
-                let black = Canvas::new(&mut black, Size::new(40, 40));
-                let mut white = bit_buf!(0xffu8; (40, 40));
-                let white = Canvas::new(&mut white, Size::new(40, 40));
-                platform.display_partial_at(&black, Point::new(x, 400));
-                platform.display_partial_at(&white, Point::new(x, 400));
+        // Fire action on POWER release.
+        if input.was_released(Button::Power) {
+            match pwr_action {
+                Some(1) => { platform.low_power_enable(); platform.log("Low power ON"); }
+                Some(2) => { platform.low_power_disable(); platform.log("Low power OFF"); }
+                Some(3) => { platform.light_sleep(); platform.log("Woke from light sleep"); }
+                Some(4) => platform.power_off(),
+                _ => {}
             }
+            pwr_action = None;
         }
 
-        if input.was_pressed(Button::SideBottom) {
-            // Overlapping partial refreshes at slightly varying positions
-            // to demonstrate ghost accumulation
-            for i in 0..5i32 {
-                let x = 120 + i * 40; // smaller step so regions overlap
-                let mut black = bit_buf!(0; (40, 40));
-                let black = Canvas::new(&mut black, Size::new(40, 40));
-                let mut white = bit_buf!(0xff; (40, 40));
-                let white = Canvas::new(&mut white, Size::new(40, 40));
-                platform.display_partial_at(&black, Point::new(x, 400));
-                platform.display_partial_at(&white, Point::new(x, 400));
+        // Normal handlers — only when POWER is not held.
+        if !input.is_pressed(Button::Power) {
+            if input.was_pressed(Button::LeftOuter) {
+                let full_canvas = platform.canvas();
+
+                let [mut top, bottom] = full_canvas.split_vert(&[1, 3]);
+                let [mut bl, mut br] = bottom.split_horz(&[1, 1]);
+
+                let rect =
+                    Rectangle::new(Point::new(40, 40), Size::new(100, 100)).into_styled(line_style);
+                rect.draw(&mut top);
+                rect.draw(&mut bl);
+                rect.draw(&mut br);
+                platform.display_fast();
             }
-        }
 
-        if input.was_pressed(Button::Power) {
-            platform.power_off();
+            if input.was_pressed(Button::LeftInner) {
+                let full_canvas = platform.canvas();
+                full_canvas.fill(0xFF);
+                platform.display_flush();
+            }
+
+            if input.was_pressed(Button::RightInner) {
+                let mut small_fb = bit_buf!(0u8; (80, 80));
+                let small_canvas = Canvas::new(&mut small_fb, Size::new(80, 80));
+                platform.display_partial_at(&small_canvas, Point::new(200, 200));
+            }
+
+            if input.was_pressed(Button::RightOuter) {
+                let mut small_fb = bit_buf!(0xffu8; (80, 80));
+                let small_canvas = Canvas::new(&mut small_fb, Size::new(80, 80));
+                platform.display_partial_at(&small_canvas, Point::new(248, 248));
+            }
+
+            if input.was_pressed(Button::SideTop) {
+                for i in 0..5i32 {
+                    let x = 80 + i * 80;
+                    let mut black = bit_buf!(0u8; (40, 40));
+                    let black = Canvas::new(&mut black, Size::new(40, 40));
+                    let mut white = bit_buf!(0xffu8; (40, 40));
+                    let white = Canvas::new(&mut white, Size::new(40, 40));
+                    platform.display_partial_at(&black, Point::new(x, 400));
+                    platform.display_partial_at(&white, Point::new(x, 400));
+                }
+            }
+
+            if input.was_pressed(Button::SideBottom) {
+                for i in 0..5i32 {
+                    let x = 120 + i * 40;
+                    let mut black = bit_buf!(0; (40, 40));
+                    let black = Canvas::new(&mut black, Size::new(40, 40));
+                    let mut white = bit_buf!(0xff; (40, 40));
+                    let white = Canvas::new(&mut white, Size::new(40, 40));
+                    platform.display_partial_at(&black, Point::new(x, 400));
+                    platform.display_partial_at(&white, Point::new(x, 400));
+                }
+            }
         }
 
         if counter % 30 == 0 {

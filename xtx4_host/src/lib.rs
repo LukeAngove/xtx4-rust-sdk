@@ -8,4 +8,4 @@ mod host_impl;
 #[path = "host_emulated.rs"]
 mod host_impl;
 
-pub use host_impl::{now_ms, delay_ms};
+pub use host_impl::{now_ms, delay_ms, Host};

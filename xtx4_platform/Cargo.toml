@@ -11,6 +11,7 @@ minifb = ["dep:xtx4_esp32", "dep:minifb"]
 
 [dependencies]
 xtx4_platform_interface = { path = "../xtx4_platform_interface" }
+xtx4_host = { path = "../xtx4_host" }
 xtx4_esp32 = { path = "../xtx4_esp32", optional = true }
 ssd1677 = { path = "../ssd1677" }
 xtx4_display = { path = "../xtx4_display" }
