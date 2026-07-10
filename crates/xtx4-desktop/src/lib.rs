@@ -280,6 +280,9 @@ impl Platform for DesktopPlatform {
         println!("{}", msg);
     }
 
+    fn width(&self) -> u16 { FRAME_WIDTH as u16 }
+    fn height(&self) -> u16 { FRAME_HEIGHT as u16 }
+
     fn low_power_enable(&mut self) {}
 
     fn low_power_disable(&mut self) {}

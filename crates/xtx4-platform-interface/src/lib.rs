@@ -89,4 +89,10 @@ pub trait Platform {
 
     /// Log to serial console (or stdout)
     fn log(&mut self, msg: &str);
+
+    /// Display width in pixels.
+    fn width(&self) -> u16;
+
+    /// Display height in pixels.
+    fn height(&self) -> u16;
 }

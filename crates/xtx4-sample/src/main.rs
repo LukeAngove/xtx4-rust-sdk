@@ -157,14 +157,15 @@ fn main() {
             }
 
             if input.was_pressed(Button::SideBottom) {
-                for i in 0..5i32 {
-                    let x = 120 + i * 40;
-                    let mut black = bit_buf!(0; (40, 40));
-                    let black = Canvas::new(&mut black, Size::new(40, 40));
-                    let mut white = bit_buf!(0xff; (40, 40));
-                    let white = Canvas::new(&mut white, Size::new(40, 40));
-                    platform.display_partial_at(&black, Point::new(x, 400));
-                    platform.display_partial_at(&white, Point::new(x, 400));
+                const PX: usize = 4;
+                const BAR_H: usize = 8;
+                const MARGIN: i32 = 32;
+                let mut col = bit_buf!(0u8; (PX, BAR_H));
+                let col = Canvas::new(&mut col, Size::new(PX as u32, BAR_H as u32));
+                let bar_y = (platform.height() - BAR_H as u16) as i32 - MARGIN;
+                let total_w = platform.width() as i32 - MARGIN * 2;
+                for x in (0..total_w).step_by(PX) {
+                    platform.display_partial_at(&col, Point::new(MARGIN + x, bar_y));
                 }
             }
         }

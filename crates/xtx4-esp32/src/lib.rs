@@ -99,6 +99,14 @@ impl<D: xtx4_display::DisplayController, B: ButtonReader> PlatformTrait for Xtx4
         println!("{}", msg);
     }
 
+    fn width(&self) -> u16 {
+        FRAME_WIDTH as u16
+    }
+
+    fn height(&self) -> u16 {
+        FRAME_HEIGHT as u16
+    }
+
     fn low_power_enable(&mut self) {
         self.host.set_low_power(true);
     }

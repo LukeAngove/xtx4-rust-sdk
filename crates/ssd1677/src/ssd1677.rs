@@ -194,6 +194,14 @@ impl<T: DisplayInterface> SSD1677<T> {
         self.send_byte(mode);
     }
 
+    /// Write waveform LUT to chip via Register 0x32.
+    /// Sends 105 bytes: VS voltages, phase lengths, repeat counts, frame rate.
+    pub fn write_lut(&mut self, lut: &crate::lut::WaveformLut) {
+        let buf = lut.to_buffer();
+        self.send_command(SSD1677Command::WriteLutRegister);
+        self.send_data(&buf);
+    }
+
     pub fn auto_write_ram(&mut self, color: Color, value: u8) {
         let command = match color {
             Color::BlackWhite => SSD1677Command::AutoWriteBwRam,

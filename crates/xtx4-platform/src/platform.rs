@@ -159,4 +159,12 @@ impl XtX4 {
     pub fn log(&mut self, msg: &str) {
         self.platform.log(msg);
     }
+
+    pub fn width(&self) -> u16 {
+        self.platform.width()
+    }
+
+    pub fn height(&self) -> u16 {
+        self.platform.height()
+    }
 }
