@@ -23,8 +23,12 @@ use esp_println::println;
 
 use xtx4_platform_interface::{Buttons, Framebuffer, Buffer, Rectangle, FRAME_WIDTH, FRAME_HEIGHT, DrawTransform};
 use xtx4_platform_interface::Platform as PlatformTrait;
-use xtx4_buttons::ButtonReader;
 use ssd1677::Ssd1677Controller;
+use xtx4_buttons::ButtonReader;
+#[cfg(not(target_arch = "x86_64"))]
+use ssd1677_esp as ssd1677_esp_impl;
+#[cfg(target_arch = "x86_64")]
+use ssd1677_pbm as ssd1677_pbm_impl;
 use xtx4_display::Display;
 
 // Intentionally inverted, for rotation.
@@ -126,11 +130,11 @@ impl<D: xtx4_display::DisplayController, B: ButtonReader> PlatformTrait for Xtx4
 // ── ESP32 hardware constructor ──────────────────────────────────────────────
 
 #[cfg(not(target_arch = "x86_64"))]
-impl Xtx4PlatformInner<Ssd1677Controller<ssd1677::esp_interface::EspInterface>, xtx4_buttons::ButtonsAdc> {
+impl Xtx4PlatformInner<Ssd1677Controller<ssd1677_esp_impl::EspInterface>, xtx4_buttons_adc::ButtonsAdc> {
     pub fn new() -> Self {
         let peripherals = esp_hal::init(esp_hal::Config::default());
 
-        let transport = ssd1677::esp_interface::EspInterface::new(ssd1677::esp_interface::EspInterfaceBuilder {
+        let transport = ssd1677_esp_impl::EspInterface::new(ssd1677_esp_impl::EspInterfaceBuilder {
             spi: peripherals.SPI2.into(),
             sck: peripherals.GPIO8.into(),
             miso: peripherals.GPIO7.into(),
@@ -145,7 +149,7 @@ impl Xtx4PlatformInner<Ssd1677Controller<ssd1677::esp_interface::EspInterface>, 
         // Configure power-pin Input for ButtonsAdc.
         use esp_hal::gpio::{Input, InputConfig, Pull};
         let power = Input::new(peripherals.GPIO3, InputConfig::default().with_pull(Pull::Up));
-        let buttons = xtx4_buttons::ButtonsAdc::new(
+        let buttons = xtx4_buttons_adc::ButtonsAdc::new(
             peripherals.ADC1, peripherals.GPIO1, peripherals.GPIO2, power
         );
         let host = xtx4_host::Host::new(peripherals.LPWR, 3);
@@ -155,19 +159,19 @@ impl Xtx4PlatformInner<Ssd1677Controller<ssd1677::esp_interface::EspInterface>, 
 }
 
 #[cfg(not(target_arch = "x86_64"))]
-pub type Xtx4Platform = Xtx4PlatformInner<Ssd1677Controller<ssd1677::esp_interface::EspInterface>, xtx4_buttons::ButtonsAdc>;
+pub type Xtx4Platform = Xtx4PlatformInner<Ssd1677Controller<ssd1677_esp_impl::EspInterface>, xtx4_buttons_adc::ButtonsAdc>;
 
 // ── Emulated (x86_64) constructor ────────────────────────────────────────────
 
 #[cfg(target_arch = "x86_64")]
-impl Xtx4PlatformInner<Ssd1677Controller<ssd1677::pbm_interface::PbmInterface>, xtx4_buttons::ButtonsStdin> {
+impl Xtx4PlatformInner<Ssd1677Controller<ssd1677_pbm_impl::PbmInterface>, xtx4_buttons_stdin::ButtonsStdin> {
     pub fn new() -> Self {
 
-        let hw = ssd1677::pbm_interface::PbmHardware::new();
-        let transport = ssd1677::pbm_interface::PbmInterface::new(hw);
+        let hw = ssd1677_pbm_impl::PbmHardware::new();
+        let transport = ssd1677_pbm_impl::PbmInterface::new(hw);
         let controller = Ssd1677Controller::new(transport, DISPLAY_WIDTH, DISPLAY_HEIGHT);
         let display = Display::new(controller);
-        let buttons = xtx4_buttons::ButtonsStdin::new();
+        let buttons = xtx4_buttons_stdin::ButtonsStdin::new();
         let host = xtx4_host::Host::new();
 
         Self::new_with(display, buttons, host)
@@ -175,17 +179,17 @@ impl Xtx4PlatformInner<Ssd1677Controller<ssd1677::pbm_interface::PbmInterface>, 
 }
 
 #[cfg(target_arch = "x86_64")]
-pub type Xtx4Platform = Xtx4PlatformInner<Ssd1677Controller<ssd1677::pbm_interface::PbmInterface>, xtx4_buttons::ButtonsStdin>;
+pub type Xtx4Platform = Xtx4PlatformInner<Ssd1677Controller<ssd1677_pbm_impl::PbmInterface>, xtx4_buttons_stdin::ButtonsStdin>;
 
 #[cfg(target_arch = "x86_64")]
-impl Xtx4PlatformInner<Ssd1677Controller<ssd1677::pbm_interface::PbmInterface>, xtx4_buttons::buttons_mock::MockButtons> {
+impl Xtx4PlatformInner<Ssd1677Controller<ssd1677_pbm_impl::PbmInterface>, xtx4_buttons_mock::MockButtons> {
     pub fn new_mock() -> Self {
-        let hw = ssd1677::pbm_interface::PbmHardware::new();
-        let interface = ssd1677::pbm_interface::PbmInterface::new(hw);
+        let hw = ssd1677_pbm_impl::PbmHardware::new();
+        let interface = ssd1677_pbm_impl::PbmInterface::new(hw);
         let controller = Ssd1677Controller::new(interface, DISPLAY_WIDTH, DISPLAY_HEIGHT);
         let display = Display::new(controller);
         let host = xtx4_host::Host::new();
-        Self::new_with(display, xtx4_buttons::buttons_mock::MockButtons::new(), host)
+        Self::new_with(display, xtx4_buttons_mock::MockButtons::new(), host)
     }
 }
 

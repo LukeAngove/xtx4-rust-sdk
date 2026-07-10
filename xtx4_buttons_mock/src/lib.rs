@@ -3,7 +3,7 @@
 
 use std::sync::Mutex;
 use xtx4_platform_interface::Buttons;
-use crate::ButtonReader;
+use xtx4_buttons::ButtonReader;
 
 static EVENT_QUEUE: Mutex<Vec<Buttons>> = Mutex::new(Vec::new());
 

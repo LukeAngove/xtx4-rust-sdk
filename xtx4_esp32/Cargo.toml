@@ -11,8 +11,14 @@ xtx4_buttons = { path = "../xtx4_buttons" }
 xtx4_platform_interface = { path = "../xtx4_platform_interface" }
 bitflags = "2"
 
-[target.'cfg(not(target_arch = "x86_64"))'.dependencies]
-nb = "1"
+[target.'cfg(target_arch = "x86_64")'.dependencies]
+ssd1677-pbm = { path = "../ssd1677-pbm" }
+xtx4_buttons_stdin = { path = "../xtx4_buttons_stdin" }
+xtx4_buttons_mock = { path = "../xtx4_buttons_mock" }
+
+[target.'cfg(target_arch = "riscv32")'.dependencies]
+ssd1677-esp = { path = "../ssd1677-esp" }
+xtx4_buttons_adc = { path = "../xtx4_buttons_adc" }
 esp-hal = { version = "1.0.0", features = ["esp32c3", "unstable"] }
 esp-println = { version = "0.12", features = ["esp32c3"] }
 esp-backtrace = { version = "0.14", features = ["esp32c3", "panic-handler", "println"] }

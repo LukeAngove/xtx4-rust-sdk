@@ -1,13 +1,11 @@
 [package]
-name = "ssd1677"
+name = "ssd1677-esp"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-xtx4_display = { path = "../xtx4_display" }
+ssd1677 = { path = "../ssd1677" }
+esp-hal = { version = "1.0.0", features = ["esp32c3", "unstable"] }
 xtx4_platform_interface = { path = "../xtx4_platform_interface" }
 xtx4_host = { path = "../xtx4_host" }
-bitflags = "2"
-
-[target.'cfg(not(target_arch = "x86_64"))'.dependencies]
 esp-println = { version = "0.12", features = ["esp32c3"] }

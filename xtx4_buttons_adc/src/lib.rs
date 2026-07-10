@@ -1,3 +1,5 @@
+#![no_std]
+
 // ESP32-C3 ADC button reader.
 // Reads 4 face buttons + 2 side buttons via resistor ladder on two ADC pins,
 // plus power button via digital input.
@@ -8,7 +10,7 @@ use esp_hal::peripherals::{ADC1, GPIO1, GPIO2};
 use esp_hal::Blocking;
 use xtx4_platform_interface::Buttons;
 
-use crate::ButtonReader;
+use xtx4_buttons::ButtonReader;
 
 // ADC ranges for pin 1 (BACK, CONFIRM, LEFT, RIGHT)
 // If ADC value is between range[i+1] and range[i], button i is pressed

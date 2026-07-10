@@ -20,14 +20,14 @@ pub struct XtX4 {
 
     #[cfg(feature = "mock")]
     platform: xtx4_esp32::Xtx4PlatformInner<
-        ssd1677::Ssd1677Controller<ssd1677::pbm_interface::PbmInterface>,
-        xtx4_buttons::buttons_mock::MockButtons,
+        ssd1677::Ssd1677Controller<ssd1677_pbm::PbmInterface>,
+        xtx4_buttons_mock::MockButtons,
     >,
 
     #[cfg(feature = "minifb")]
     platform: xtx4_esp32::Xtx4PlatformInner<
-        ssd1677::Ssd1677Controller<ssd1677::minifb_interface::MinifbInterface>,
-        xtx4_buttons::buttons_minifb::MinifbButtons,
+        ssd1677::Ssd1677Controller<ssd1677_minifb::MinifbInterface>,
+        xtx4_buttons_minifb::MinifbButtons,
     >,
 
     input_state_manager: InputStateManager,
@@ -53,11 +53,11 @@ impl XtX4 {
             let window = std::rc::Rc::new(std::cell::RefCell::new(
                 minifb::Window::new("Xteink X4", 480, 800, minifb::WindowOptions::default()).unwrap()
             ));
-            let hw = ssd1677::minifb_interface::MinifbHardware::new();
-            let interface = ssd1677::minifb_interface::MinifbInterface::new(hw, window.clone());
+            let hw = ssd1677_minifb::MinifbHardware::new();
+            let interface = ssd1677_minifb::MinifbInterface::new(hw, window.clone());
             let controller = ssd1677::Ssd1677Controller::new(interface, display_w, display_h);
             let display = xtx4_display::Display::new(controller);
-            let buttons = xtx4_buttons::buttons_minifb::MinifbButtons::new(window);
+            let buttons = xtx4_buttons_minifb::MinifbButtons::new(window);
             let host = xtx4_host::Host::new();
             xtx4_esp32::Xtx4PlatformInner::new_with(display, buttons, host)
         };

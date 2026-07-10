@@ -1,3 +1,5 @@
+#![no_std]
+
 use esp_hal::peripherals::LPWR;
 use esp_hal::rtc_cntl::sleep::{RtcioWakeupSource, WakeupLevel};
 use esp_hal::rtc_cntl::Rtc;

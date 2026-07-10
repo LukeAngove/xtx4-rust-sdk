@@ -12,7 +12,7 @@ use xtx4_platform::{bit_buf, Button, Canvas, XtX4, STYLE_BLACK};
 fn main() {
     #[cfg(feature = "mock")]
     {
-        use xtx4_buttons::buttons_mock::MockButtons;
+        use xtx4_buttons_mock::MockButtons;
         use xtx4_buttons::ButtonFlags;
         // Queue the test sequence: all buttons in order.
         // MockButtons::new() already fills one empty read for XtX4::new().

@@ -6,7 +6,7 @@ use core::cell::Cell;
 use std::cell::RefCell;
 use std::rc::Rc;
 use minifb::Window;
-use crate::DisplayInterface;
+use ssd1677::DisplayInterface;
 
 // ── Coordinate space constants ───────────────────────────────────────────
 //

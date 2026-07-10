@@ -4,7 +4,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use minifb::{Key, Window};
 use xtx4_platform_interface::Buttons;
-use crate::ButtonReader;
+use xtx4_buttons::ButtonReader;
 
 pub struct MinifbButtons {
     window: Rc<RefCell<Window>>,

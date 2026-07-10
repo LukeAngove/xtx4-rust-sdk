@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicU8, Ordering};
 use std::thread;
 
 use xtx4_platform_interface::Buttons;
-use crate::ButtonReader;
+use xtx4_buttons::ButtonReader;
 
 struct RawMode;
 impl RawMode {

@@ -4,4 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [target.'cfg(target_arch = "riscv32")'.dependencies]
-esp-hal = { version = "1.0.0", features = ["esp32c3", "unstable"] }
+xtx4_host_esp = { path = "../xtx4_host_esp" }
+
+[target.'cfg(target_arch = "x86_64")'.dependencies]
+xtx4_host_emulated = { path = "../xtx4_host_emulated" }

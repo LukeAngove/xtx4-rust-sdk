@@ -4,7 +4,7 @@
 
 use core::cell::Cell;
 use std::io::Write;
-use crate::DisplayInterface;
+use ssd1677::DisplayInterface;
 
 pub const DISPLAY_WIDTH: usize = 800;
 pub const DISPLAY_HEIGHT: usize = 480;

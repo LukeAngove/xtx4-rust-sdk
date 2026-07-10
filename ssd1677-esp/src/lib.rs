@@ -1,3 +1,5 @@
+#![cfg_attr(target_arch = "riscv32", no_std)]
+
 // ESP32-C3 hardware transport implementation.
 // Wraps the real SPI, CS, DC, RST, BUSY pins.
 
@@ -13,7 +15,7 @@ use esp_hal::gpio::InputConfig;
 use esp_hal::gpio::OutputConfig;
 
 use esp_println::{println, print};
-use crate::DisplayInterface;
+use ssd1677::DisplayInterface;
 use xtx4_host;
 
 pub struct EspInterface {
