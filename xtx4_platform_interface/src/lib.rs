@@ -75,6 +75,12 @@ pub trait Platform {
     /// Leave lite sleep mode for device.
     fn low_power_disable(&mut self);
 
+    /// Put the display controller into deep sleep.
+    fn display_sleep(&mut self);
+
+    /// Reinitialize the display after sleep.
+    fn display_wake(&mut self);
+
     /// Enter light sleep. CPU pauses, RAM preserved.
     fn light_sleep(&mut self);
 

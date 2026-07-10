@@ -140,6 +140,14 @@ impl XtX4 {
         self.platform.low_power_disable();
     }
 
+    pub fn display_sleep(&mut self) {
+        self.platform.display_sleep();
+    }
+
+    pub fn display_wake(&mut self) {
+        self.platform.display_wake();
+    }
+
     pub fn light_sleep(&mut self) {
         self.platform.light_sleep();
     }

@@ -140,6 +140,10 @@ impl<D: DisplayController> Display<D> {
         self.controller.wake(clear_display);
     }
 
+    pub fn display_sleep(&mut self) {
+        self.controller.sleep();
+    }
+
     pub fn is_asleep(&self) -> bool {
         self.controller.is_asleep()
     }

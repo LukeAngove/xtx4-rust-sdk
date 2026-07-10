@@ -56,12 +56,11 @@ pub struct Xtx4PlatformInner<D: xtx4_display::DisplayController, B: ButtonReader
     display: Display<D>,
     buttons: B,
     host: xtx4_host::Host,
-    low_power: bool,
 }
 
 impl<D: xtx4_display::DisplayController, B: ButtonReader> Xtx4PlatformInner<D, B> {
     pub fn new_with(display: Display<D>, buttons: B, host: xtx4_host::Host) -> Self {
-        Self { display, buttons, host, low_power: false }
+        Self { display, buttons, host }
     }
 }
 
@@ -97,19 +96,19 @@ impl<D: xtx4_display::DisplayController, B: ButtonReader> PlatformTrait for Xtx4
     }
 
     fn low_power_enable(&mut self) {
-        if self.low_power { return; }
-        self.low_power = true;
-        self.display.sleep();
         self.host.set_low_power(true);
-        println!("Low power ON");
     }
 
     fn low_power_disable(&mut self) {
-        if !self.low_power { return; }
-        self.low_power = false;
         self.host.set_low_power(false);
+    }
+
+    fn display_sleep(&mut self) {
+        self.display.sleep();
+    }
+
+    fn display_wake(&mut self) {
         self.display.wake(false);
-        println!("Low power OFF");
     }
 
     fn light_sleep(&mut self) {

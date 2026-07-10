@@ -101,8 +101,8 @@ fn main() {
         // Fire action on POWER release.
         if input.was_released(Button::Power) {
             match pwr_action {
-                Some(1) => platform.low_power_enable(),
-                Some(2) => platform.low_power_disable(),
+                Some(1) => { platform.low_power_enable(); platform.display_sleep(); }
+                Some(2) => { platform.display_wake(); platform.low_power_disable(); }
                 Some(3) => { platform.light_sleep(); platform.log("Woke from light sleep"); }
                 Some(4) => platform.power_off(),
                 _ => {}
