@@ -1,8 +1,0 @@
-[package]
-name = "xtx4_buttons_mock"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-xtx4_buttons = { path = "../xtx4_buttons" }
-xtx4_platform_interface = { path = "../xtx4_platform_interface" }

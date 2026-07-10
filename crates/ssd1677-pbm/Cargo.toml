@@ -1,0 +1,9 @@
+[package]
+name = "ssd1677-pbm"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ssd1677 = { path = "../ssd1677" }
+xtx4-platform-interface = { path = "../xtx4-platform-interface" }
+xtx4-host = { path = "../xtx4-host" }

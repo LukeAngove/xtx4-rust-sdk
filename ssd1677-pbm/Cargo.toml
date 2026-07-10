@@ -1,9 +1,0 @@
-[package]
-name = "ssd1677-pbm"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-ssd1677 = { path = "../ssd1677" }
-xtx4_platform_interface = { path = "../xtx4_platform_interface" }
-xtx4_host = { path = "../xtx4_host" }

@@ -1,0 +1,14 @@
+# xtx4_sample/Cargo.toml
+[package]
+name = "xtx4-sample"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+mock = ["xtx4-platform/mock", "dep:xtx4-buttons", "dep:xtx4-buttons-mock"]
+
+[dependencies]
+xtx4-platform = { path = "../xtx4-platform", default-features = false }
+xtx4-buttons = { path = "../xtx4-buttons", optional = true }
+xtx4-buttons-mock = { path = "../xtx4-buttons-mock", optional = true }
+embedded-graphics = "0.8"

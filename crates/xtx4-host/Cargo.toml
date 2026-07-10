@@ -1,0 +1,10 @@
+[package]
+name = "xtx4-host"
+version = "0.1.0"
+edition = "2021"
+
+[target.'cfg(target_arch = "riscv32")'.dependencies]
+xtx4-host-esp = { path = "../xtx4-host-esp" }
+
+[target.'cfg(target_arch = "x86_64")'.dependencies]
+xtx4-host-emulated = { path = "../xtx4-host-emulated" }

@@ -1,7 +1,0 @@
-[package]
-name = "xtx4_display"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-xtx4_platform_interface = { path = "../xtx4_platform_interface" }

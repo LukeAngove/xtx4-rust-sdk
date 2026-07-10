@@ -1,0 +1,24 @@
+[package]
+name = "xtx4-esp32"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ssd1677 = { path = "../ssd1677" }
+xtx4-display = { path = "../xtx4-display" }
+xtx4-host = { path = "../xtx4-host" }
+xtx4-buttons = { path = "../xtx4-buttons" }
+xtx4-platform-interface = { path = "../xtx4-platform-interface" }
+bitflags = "2"
+
+[target.'cfg(target_arch = "x86_64")'.dependencies]
+ssd1677-pbm = { path = "../ssd1677-pbm" }
+xtx4-buttons-stdin = { path = "../xtx4-buttons-stdin" }
+xtx4-buttons-mock = { path = "../xtx4-buttons-mock" }
+
+[target.'cfg(target_arch = "riscv32")'.dependencies]
+ssd1677-esp = { path = "../ssd1677-esp" }
+xtx4-buttons-adc = { path = "../xtx4-buttons-adc" }
+esp-hal = { version = "1.0.0", features = ["esp32c3", "unstable"] }
+esp-println = { version = "0.12", features = ["esp32c3"] }
+esp-backtrace = { version = "0.14", features = ["esp32c3", "panic-handler", "println"] }

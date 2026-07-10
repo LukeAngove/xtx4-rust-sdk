@@ -1,0 +1,9 @@
+[package]
+name = "xtx4-buttons-stdin"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+xtx4-buttons = { path = "../xtx4-buttons" }
+xtx4-platform-interface = { path = "../xtx4-platform-interface" }
+xtx4-host = { path = "../xtx4-host" }

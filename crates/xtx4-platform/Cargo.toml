@@ -1,0 +1,25 @@
+[package]
+name = "xtx4-platform"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+desktop = ["dep:xtx4-desktop"]
+esp32 = ["dep:xtx4-esp32"]
+mock = ["dep:xtx4-esp32", "dep:ssd1677-pbm", "dep:xtx4-buttons-mock"]
+minifb = ["dep:xtx4-esp32", "dep:minifb", "dep:ssd1677-minifb", "dep:xtx4-buttons-minifb"]
+
+[dependencies]
+xtx4-platform-interface = { path = "../xtx4-platform-interface" }
+xtx4-host = { path = "../xtx4-host" }
+xtx4-esp32 = { path = "../xtx4-esp32", optional = true }
+ssd1677 = { path = "../ssd1677" }
+ssd1677-pbm = { path = "../ssd1677-pbm", optional = true }
+xtx4-display = { path = "../xtx4-display" }
+xtx4-buttons = { path = "../xtx4-buttons" }
+xtx4-desktop = { path = "../xtx4-desktop", optional = true }
+minifb = { version = "0.27", optional = true, features = ["x11"] }
+ssd1677-minifb = { path = "../ssd1677-minifb", optional = true }
+xtx4-buttons-mock = { path = "../xtx4-buttons-mock", optional = true }
+xtx4-buttons-minifb = { path = "../xtx4-buttons-minifb", optional = true }
+embedded-graphics = "0.8"
