@@ -6,7 +6,7 @@ use embedded_graphics::{
     primitives::{PrimitiveStyleBuilder, Rectangle},
     text::Text,
 };
-use xtx4_platform::{bit_buf, Button, Canvas, XtX4, STYLE_BLACK};
+use xtx4_platform::{bit_buf, Button, Canvas, File, SeekFrom, XtX4, STYLE_BLACK};
 
 #[no_mangle]
 fn main() {
@@ -151,24 +151,49 @@ fn main() {
                     }
                 }
 
-                let path = "/TEST.BIN";
-                if let Err(_) = platform.storage().write_file(path, &pattern) {
-                    platform.log("SD: write_file failed");
-                    return;
-                }
-
                 let mut readback = [0u8; RAW];
-                let n = match platform.storage().read_file(path, &mut readback) {
+                let sd_result = {
+                    let storage = platform.storage();
+                    let mut write_ok = false;
+                    // Write
+                    if let Ok(mut f) = storage.create("/TEST.BIN") {
+                        write_ok = f.write(&pattern).is_ok();
+                    }
+                    if !write_ok {
+                        return;
+                    }
+                    // Read back
+                    let mut f = match storage.open("/TEST.BIN") {
+                        Ok(f) => f,
+                        Err(_) => return,
+                    };
+                    f.read(&mut readback)
+                };
+                let n = match sd_result {
                     Ok(n) => n,
                     Err(_) => {
-                        platform.log("SD: read_file failed");
+                        platform.log("SD: read failed");
                         return;
                     }
                 };
                 if n != RAW {
-                    platform.log("SD: read_file short read");
+                    platform.log("SD: short read");
                     return;
                 }
+                // Seek test: jump to middle, read a strip
+                let seek_log = {
+                    let storage = platform.storage();
+                    if let Ok(mut f) = storage.open("/TEST.BIN") {
+                        f.seek(SeekFrom::Start(40)).unwrap();
+                        let _pos = f.stream_position().unwrap();
+                        let _len = f.length().unwrap();
+                        let mut strip = [0u8; 80];
+                        if f.read(&mut strip).is_ok() { "SD: seek ok" } else { "SD: seek fail" }
+                    } else {
+                        "SD: seek open fail"
+                    }
+                };
+                platform.log(seek_log);
 
                 let buf = bit_buf!(0u8; (SIZE, SIZE));
                 for (cell, byte) in buf.as_array_of_cells()[..RAW]
