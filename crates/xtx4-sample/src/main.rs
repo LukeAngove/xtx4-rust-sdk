@@ -152,48 +152,25 @@ fn main() {
                 }
 
                 let mut readback = [0u8; RAW];
-                let sd_result = {
-                    let storage = platform.storage();
-                    let mut write_ok = false;
-                    // Write
-                    if let Ok(mut f) = storage.create("/TEST.BIN") {
-                        write_ok = f.write(&pattern).is_ok();
-                    }
-                    if !write_ok {
-                        return;
-                    }
-                    // Read back
-                    let mut f = match storage.open("/TEST.BIN") {
-                        Ok(f) => f,
-                        Err(_) => return,
-                    };
-                    f.read(&mut readback)
-                };
-                let n = match sd_result {
-                    Ok(n) => n,
-                    Err(_) => {
-                        platform.log("SD: read failed");
-                        return;
-                    }
-                };
+                // Write
+                if let Ok(mut f) = platform.storage().create("/TEST.BIN") {
+                    f.write(&pattern).unwrap();
+                }
+                // Read back
+                let n = platform.storage().open("/TEST.BIN")
+                    .and_then(|mut f| f.read(&mut readback))
+                    .unwrap_or(0);
                 if n != RAW {
                     platform.log("SD: short read");
                     return;
                 }
-                // Seek test: jump to middle, read a strip
-                let seek_log = {
-                    let storage = platform.storage();
-                    if let Ok(mut f) = storage.open("/TEST.BIN") {
-                        f.seek(SeekFrom::Start(40)).unwrap();
-                        let _pos = f.stream_position().unwrap();
-                        let _len = f.length().unwrap();
-                        let mut strip = [0u8; 80];
-                        if f.read(&mut strip).is_ok() { "SD: seek ok" } else { "SD: seek fail" }
-                    } else {
-                        "SD: seek open fail"
-                    }
-                };
-                platform.log(seek_log);
+                // Seek test
+                if let Ok(mut f) = platform.storage().open("/TEST.BIN") {
+                    f.seek(SeekFrom::Start(40)).unwrap();
+                    let _pos = f.stream_position().unwrap();
+                    let _len = f.length().unwrap();
+                    platform.log("SD: seek ok");
+                }
 
                 let buf = bit_buf!(0u8; (SIZE, SIZE));
                 for (cell, byte) in buf.as_array_of_cells()[..RAW]

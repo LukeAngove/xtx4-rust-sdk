@@ -148,20 +148,20 @@ mod sd_backend {
             false
         }
 
-        pub fn open_file(&self, path: &str, mode: Mode) -> Result<SdFile<'_>, Error> {
+        pub fn open_file(&self, path: &str, mode: Mode) -> Result<SdFile, Error> {
             SdFile::open(&self.volume_mgr, path, mode)
         }
     }
 
-    pub struct SdFile<'a> {
+    pub struct SdFile {
         raw_volume: RawVolume,
         raw_dir: RawDirectory,
         raw_file: RawFile,
-        vm: &'a Vm,
+        vm: &'static Vm,
     }
 
-    impl<'a> SdFile<'a> {
-        fn open(vm: &'a Vm, path: &str, mode: Mode) -> Result<Self, Error> {
+    impl SdFile {
+        fn open(vm: &Vm, path: &str, mode: Mode) -> Result<Self, Error> {
             let raw_volume = vm.open_raw_volume(VolumeIdx(0)).map_err(|e| map_err(e))?;
             let raw_dir = vm.open_root_dir(raw_volume).map_err(|e| {
                 vm.close_volume(raw_volume).ok();
@@ -178,11 +178,14 @@ mod sd_backend {
                 vm.close_volume(raw_volume).ok();
                 map_err(e)
             })?;
+            // SAFETY: VolumeManager lives inside Storage, which lives inside
+            // XtX4, which lives for the entire program (never dropped on ESP32).
+            let vm: &'static Vm = unsafe { &*(vm as *const Vm) };
             Ok(SdFile { raw_volume, raw_dir, raw_file, vm })
         }
     }
 
-    impl File for SdFile<'_> {
+    impl File for SdFile {
         fn read(&mut self, buf: &mut [u8]) -> Result<usize, Error> {
             self.vm.read(self.raw_file, buf).map_err(|e| map_err(e))
         }
@@ -211,7 +214,7 @@ mod sd_backend {
         }
     }
 
-    impl Drop for SdFile<'_> {
+    impl Drop for SdFile {
         fn drop(&mut self) {
             self.vm.close_file(self.raw_file).ok();
             self.vm.close_dir(self.raw_dir).ok();
@@ -366,7 +369,7 @@ impl Storage {
     }
 
     /// Open a file for reading.
-    pub fn open(&self, path: &str) -> Result<impl File + '_, Error> {
+    pub fn open(&self, path: &str) -> Result<impl File, Error> {
         #[cfg(target_arch = "riscv32")]
         {
             self.inner.open_file(path, embedded_sdmmc::Mode::ReadOnly)
@@ -378,7 +381,7 @@ impl Storage {
     }
 
     /// Create a file for writing (truncates if exists).
-    pub fn create(&self, path: &str) -> Result<impl File + '_, Error> {
+    pub fn create(&self, path: &str) -> Result<impl File, Error> {
         #[cfg(target_arch = "riscv32")]
         {
             self.inner.open_file(path, embedded_sdmmc::Mode::ReadWriteCreateOrTruncate)
