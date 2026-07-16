@@ -64,7 +64,7 @@ impl XtX4 {
 
         let mut input_state_manager = InputStateManager::new();
         input_state_manager.update(&mut platform);
-        let framebuffer = bit_buf!(0u8; (FRAME_WIDTH, FRAME_HEIGHT));
+        let framebuffer = bit_buf!(0xffu8; (FRAME_WIDTH, FRAME_HEIGHT));
         Self {
             platform,
             framebuffer,
