@@ -5,7 +5,10 @@ edition = "2021"
 
 [dependencies]
 ssd1677 = { path = "../ssd1677" }
+xtx4-bus = { path = "../xtx4-bus" }
 esp-hal = { version = "1.0.0", features = ["esp32c3", "unstable"] }
+embedded-hal = "1"
 xtx4-platform-interface = { path = "../xtx4-platform-interface" }
 xtx4-host = { path = "../xtx4-host" }
 esp-println = { version = "0.12", features = ["esp32c3"] }
+embedded-hal-bus = "0.3"

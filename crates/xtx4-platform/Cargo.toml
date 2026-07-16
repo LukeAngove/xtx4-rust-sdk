@@ -17,6 +17,7 @@ ssd1677 = { path = "../ssd1677" }
 ssd1677-pbm = { path = "../ssd1677-pbm", optional = true }
 xtx4-display = { path = "../xtx4-display" }
 xtx4-buttons = { path = "../xtx4-buttons" }
+xtx4-storage = { path = "../xtx4-storage" }
 xtx4-desktop = { path = "../xtx4-desktop", optional = true }
 minifb = { version = "0.27", optional = true, features = ["x11"] }
 ssd1677-minifb = { path = "../ssd1677-minifb", optional = true }

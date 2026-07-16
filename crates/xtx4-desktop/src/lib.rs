@@ -11,7 +11,8 @@
 //
 
 use minifb::{Key, Window, WindowOptions};
-use xtx4_platform_interface::{Buttons, Framebuffer, Buffer, Platform, bit_buf, DrawTransform, Rectangle};
+use xtx4_platform_interface::{Buttons, Framebuffer, Buffer, Platform, bit_buf, DrawTransform, Rectangle, FRAME_WIDTH, FRAME_HEIGHT};
+use xtx4_storage::Storage;
 
 // Use width and height as the viewer sees them.
 // This is different to the hardware, which is 90 degrees off!
@@ -77,6 +78,7 @@ pub struct DesktopPlatform {
     window: Window,
     prev_buf: Framebuffer,
     ghost_buf: [u8; BUFF_SIZE],
+    pub storage: Storage,
 }
 
 impl DesktopPlatform {
@@ -93,6 +95,7 @@ impl DesktopPlatform {
             window,
             prev_buf: bit_buf!(0u8; (WIDTH, HEIGHT)),
             ghost_buf: [0; BUFF_SIZE],
+            storage: Storage::new(),
         }
     }
 

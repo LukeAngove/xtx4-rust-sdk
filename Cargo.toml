@@ -1,6 +1,6 @@
 [workspace]
 members = [
-    "crates/xtx4-buttons",
+    "crates/xtx4-bus",
     "crates/xtx4-display",
     "crates/xtx4-host",
     "crates/xtx4-platform-interface",
@@ -10,5 +10,5 @@ members = [
 ]
 # Exclude from platform specific targets from build; only build when depended on.
 # Stops build errors on incompatible platforms
-exclude = ["crates/xtx4-desktop", "crates/xtx4-esp32", "crates/ssd1677-esp", "crates/ssd1677-minifb", "crates/ssd1677-pbm", "crates/xtx4-buttons-adc", "crates/xtx4-buttons-stdin", "crates/xtx4-buttons-minifb", "crates/xtx4-buttons-mock", "crates/xtx4-host-esp", "crates/xtx4-host-emulated"]
+exclude = ["crates/xtx4-desktop", "crates/xtx4-esp32", "crates/xtx4-bus", "crates/ssd1677-esp", "crates/ssd1677-minifb", "crates/ssd1677-pbm", "crates/xtx4-buttons-adc", "crates/xtx4-buttons-stdin", "crates/xtx4-buttons-minifb", "crates/xtx4-buttons-mock", "crates/xtx4-host-esp", "crates/xtx4-host-emulated"]
 resolver = "2"

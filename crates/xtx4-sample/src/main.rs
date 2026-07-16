@@ -133,9 +133,52 @@ fn main() {
             }
 
             if input.was_pressed(Button::RightInner) {
-                let mut small_fb = bit_buf!(0u8; (80, 80));
-                let small_canvas = Canvas::new(&mut small_fb, Size::new(80, 80));
-                platform.display_partial_at(&small_canvas, Point::new(200, 200));
+                // Storage test: write a checkerboard pattern, read it back, display it.
+                const SIZE: usize = 80;
+                const RAW: usize = (SIZE * SIZE) / 8;
+
+                // Build a checkerboard: alternating black/white columns.
+                let mut pattern = [0u8; RAW];
+                for row in 0..SIZE {
+                    for col in 0..SIZE {
+                        let px = row * SIZE + col;
+                        let byte = px / 8;
+                        let bit = px % 8;
+                        let is_black = ((row / 8) + (col / 8)) % 2 == 0;
+                        if is_black {
+                            pattern[byte] |= 0x80 >> bit;
+                        }
+                    }
+                }
+
+                let path = "/TEST.BIN";
+                if let Err(_) = platform.storage().write_file(path, &pattern) {
+                    platform.log("SD: write_file failed");
+                    return;
+                }
+
+                let mut readback = [0u8; RAW];
+                let n = match platform.storage().read_file(path, &mut readback) {
+                    Ok(n) => n,
+                    Err(_) => {
+                        platform.log("SD: read_file failed");
+                        return;
+                    }
+                };
+                if n != RAW {
+                    platform.log("SD: read_file short read");
+                    return;
+                }
+
+                let buf = bit_buf!(0u8; (SIZE, SIZE));
+                for (cell, byte) in buf.as_array_of_cells()[..RAW]
+                    .iter()
+                    .zip(readback.iter())
+                {
+                    cell.set(*byte);
+                }
+                let canvas = Canvas::new(&buf, Size::new(SIZE as u32, SIZE as u32));
+                platform.display_partial_at(&canvas, Point::new(200, 200));
             }
 
             if input.was_pressed(Button::RightOuter) {

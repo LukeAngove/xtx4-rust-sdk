@@ -6,8 +6,8 @@
 // On x86_64 targets the in-memory mock backend is used; on ESP32 targets
 // (xtensa, riscv32) the real SPI/GPIO hardware backend is used.
 
-// Hardware pin reference (from community SDK):
-//   SPI bus : SCLK=8, MOSI=10
+// Hardware pin reference (from community SDK / CrossPoint HalGPIO.h):
+//   SPI bus : SCLK=8, MOSI=10, MISO=7
 //   EPD CS  : GPIO 21
 //   EPD DC  : GPIO 4   (command/data select)
 //   EPD RST : GPIO 5
@@ -60,11 +60,12 @@ pub struct Xtx4PlatformInner<D: xtx4_display::DisplayController, B: ButtonReader
     display: Display<D>,
     buttons: B,
     host: xtx4_host::Host,
+    pub storage: xtx4_storage::Storage,
 }
 
 impl<D: xtx4_display::DisplayController, B: ButtonReader> Xtx4PlatformInner<D, B> {
-    pub fn new_with(display: Display<D>, buttons: B, host: xtx4_host::Host) -> Self {
-        Self { display, buttons, host }
+    pub fn new_with(display: Display<D>, buttons: B, host: xtx4_host::Host, storage: xtx4_storage::Storage) -> Self {
+        Self { display, buttons, host, storage }
     }
 }
 
@@ -140,13 +141,27 @@ impl<D: xtx4_display::DisplayController, B: ButtonReader> PlatformTrait for Xtx4
 #[cfg(not(target_arch = "x86_64"))]
 impl Xtx4PlatformInner<Ssd1677Controller<ssd1677_esp_impl::EspInterface>, xtx4_buttons_adc::ButtonsAdc> {
     pub fn new() -> Self {
+        use esp_hal::{
+            time::Rate,
+            spi::master::{Config, Spi},
+        };
+
         let peripherals = esp_hal::init(esp_hal::Config::default());
 
+        // ── Create SPI bus and share it globally ─────────────────────
+        let spi_config = Config::default()
+            .with_frequency(Rate::from_mhz(40u32))
+            .with_mode(esp_hal::spi::Mode::_0);
+        let spi = Spi::new(peripherals.SPI2, spi_config)
+            .expect("SPI failed to initialise")
+            .with_sck(peripherals.GPIO8)
+            .with_mosi(peripherals.GPIO10)
+            .with_miso(peripherals.GPIO7);
+
+        xtx4_bus::init(spi);
+
+        // ── Display (CS=GPIO21) ──────────────────────────────────────
         let transport = ssd1677_esp_impl::EspInterface::new(ssd1677_esp_impl::EspInterfaceBuilder {
-            spi: peripherals.SPI2.into(),
-            sck: peripherals.GPIO8.into(),
-            miso: peripherals.GPIO7.into(),
-            mosi: peripherals.GPIO10.into(),
             cs: peripherals.GPIO21.into(),
             dc: peripherals.GPIO4.into(),
             rst: peripherals.GPIO5.into(),
@@ -154,7 +169,8 @@ impl Xtx4PlatformInner<Ssd1677Controller<ssd1677_esp_impl::EspInterface>, xtx4_b
         });
         let controller = Ssd1677Controller::new(transport, DISPLAY_WIDTH, DISPLAY_HEIGHT);
         let display = Display::new(controller);
-        // Configure power-pin Input for ButtonsAdc.
+
+        // ── Buttons ──────────────────────────────────────────────────
         use esp_hal::gpio::{Input, InputConfig, Pull};
         let power = Input::new(peripherals.GPIO3, InputConfig::default().with_pull(Pull::Up));
         let buttons = xtx4_buttons_adc::ButtonsAdc::new(
@@ -162,7 +178,9 @@ impl Xtx4PlatformInner<Ssd1677Controller<ssd1677_esp_impl::EspInterface>, xtx4_b
         );
         let host = xtx4_host::Host::new(peripherals.LPWR, 3);
 
-        Self::new_with(display, buttons, host)
+        let storage = xtx4_storage::Storage::new();
+
+        Self::new_with(display, buttons, host, storage)
     }
 }
 
@@ -182,7 +200,7 @@ impl Xtx4PlatformInner<Ssd1677Controller<ssd1677_pbm_impl::PbmInterface>, xtx4_b
         let buttons = xtx4_buttons_stdin::ButtonsStdin::new();
         let host = xtx4_host::Host::new();
 
-        Self::new_with(display, buttons, host)
+        Self::new_with(display, buttons, host, xtx4_storage::Storage::new())
     }
 }
 
@@ -197,7 +215,7 @@ impl Xtx4PlatformInner<Ssd1677Controller<ssd1677_pbm_impl::PbmInterface>, xtx4_b
         let controller = Ssd1677Controller::new(interface, DISPLAY_WIDTH, DISPLAY_HEIGHT);
         let display = Display::new(controller);
         let host = xtx4_host::Host::new();
-        Self::new_with(display, xtx4_buttons_mock::MockButtons::new(), host)
+        Self::new_with(display, xtx4_buttons_mock::MockButtons::new(), host, xtx4_storage::Storage::new())
     }
 }
 
