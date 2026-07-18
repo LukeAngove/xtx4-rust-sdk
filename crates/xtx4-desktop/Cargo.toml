@@ -5,5 +5,5 @@ edition = "2021"
 
 [dependencies]
 xtx4-platform-interface = { path = "../xtx4-platform-interface" }
-xtx4-storage = { path = "../xtx4-storage" }
+sd-storage = { path = "../sd-storage" }
 minifb = { version = "0.27", features = ["x11"] }

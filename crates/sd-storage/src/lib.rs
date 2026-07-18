@@ -33,59 +33,23 @@ pub trait File {
 #[cfg(target_arch = "riscv32")]
 mod sd_backend {
     use super::{Error, File, SeekFrom};
-    use core::convert::Infallible;
-    use embedded_hal::spi::{Operation, SpiBus, SpiDevice};
     use embedded_sdmmc::{Mode, RawDirectory, RawFile, RawVolume, SdCard, TimeSource, Timestamp, VolumeIdx, VolumeManager};
+    use embedded_hal_bus::spi::CriticalSectionDevice;
     use esp_hal::{
         delay::Delay,
         spi::master::Spi,
     };
+    use xtx4_raw_gpio::RawGpioPin;
 
     // ── GPIO12 CS via PAC registers ──────────────────────────────────
     // GPIO12 is not exposed by esp-hal on ESP32-C3 (normally reserved
     // for flash SPIHD), but the X4 uses DIO flash mode freeing it for
-    // SD card chip select. We write the registers directly, matching
-    // what Arduino's gpio_set_level(12, ...) does under the hood.
+    // SD card chip select. We use RawGpioPin from xtx4-raw-gpio to
+    // write the registers directly.
 
-    fn cs_init() {
-        // SAFETY: direct register write, no lock required for GPIO output control
-        let gpio = esp_hal::peripherals::GPIO::regs();
-        gpio.enable_w1ts().write(|w| unsafe { w.bits(1 << 12) });
-        gpio.out_w1ts().write(|w| unsafe { w.bits(1 << 12) });
-    }
-
-    struct SdDev;
-
-    impl embedded_hal::spi::ErrorType for SdDev {
-        type Error = Infallible;
-    }
-
-    impl SpiDevice<u8> for SdDev {
-        fn transaction(
-            &mut self,
-            operations: &mut [Operation<'_, u8>],
-        ) -> Result<(), Self::Error> {
-            xtx4_bus::with(|spi: &mut Spi<'static, esp_hal::Blocking>| {
-                let gpio = esp_hal::peripherals::GPIO::regs();
-                // assert CS
-                gpio.out_w1tc().write(|w| unsafe { w.bits(1 << 12) });
-
-                for op in operations {
-                    match op {
-                        Operation::Read(buf) => { spi.read(buf).unwrap(); }
-                        Operation::Write(data) => { spi.write(data).unwrap(); }
-                        Operation::Transfer(read, write) => { SpiBus::transfer(spi, read, write).unwrap(); }
-                        Operation::TransferInPlace(buf) => { spi.transfer(buf).unwrap(); }
-                        Operation::DelayNs(_) => {}
-                    }
-                }
-
-                // deassert CS
-                gpio.out_w1ts().write(|w| unsafe { w.bits(1 << 12) });
-            });
-            Ok(())
-        }
-    }
+    pub type SpiDev = CriticalSectionDevice<'static, Spi<'static, esp_hal::Blocking>, RawGpioPin<12>, Delay>;
+    type Sd = SdCard<SpiDev, Delay>;
+    type Vm = VolumeManager<Sd, DummyTimeSource>;
 
     // ── Backend ───────────────────────────────────────────────────────
 
@@ -96,17 +60,13 @@ mod sd_backend {
         }
     }
 
-    type Sd = SdCard<SdDev, Delay>;
-    type Vm = VolumeManager<Sd, DummyTimeSource>;
-
     pub struct SdBackend {
         volume_mgr: Vm,
     }
 
     impl SdBackend {
-        pub fn new() -> Self {
-            cs_init();
-            let sdcard = SdCard::new(SdDev, Delay::new());
+        pub fn new(spi_dev: SpiDev) -> Self {
+            let sdcard = SdCard::new(spi_dev, Delay::new());
             let volume_mgr = VolumeManager::new(sdcard, DummyTimeSource);
             Self { volume_mgr }
         }
@@ -347,8 +307,8 @@ pub struct Storage {
 
 impl Storage {
     #[cfg(target_arch = "riscv32")]
-    pub fn new() -> Self {
-        Self { inner: sd_backend::SdBackend::new() }
+    pub fn new(spi_dev: sd_backend::SpiDev) -> Self {
+        Self { inner: sd_backend::SdBackend::new(spi_dev) }
     }
 
     #[cfg(target_arch = "x86_64")]

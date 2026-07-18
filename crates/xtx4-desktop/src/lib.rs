@@ -12,7 +12,7 @@
 
 use minifb::{Key, Window, WindowOptions};
 use xtx4_platform_interface::{Buttons, Framebuffer, Buffer, Platform, bit_buf, DrawTransform, Rectangle, FRAME_WIDTH, FRAME_HEIGHT};
-use xtx4_storage::Storage;
+use sd_storage::Storage;
 
 // Use width and height as the viewer sees them.
 // This is different to the hardware, which is 90 degrees off!

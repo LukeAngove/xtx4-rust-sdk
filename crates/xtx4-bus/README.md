@@ -14,6 +14,6 @@ xtx4_bus::init(spi);
 // Display (ssd1677-esp)
 let dev = CriticalSectionDevice::new(xtx4_bus::get(), cs, delay);
 
-// SD card (xtx4-storage)
+// SD card (sd-storage)
 xtx4_bus::with(|spi| { spi.write(data).unwrap(); });
 ```

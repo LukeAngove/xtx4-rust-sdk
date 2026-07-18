@@ -1,5 +1,5 @@
 [package]
-name = "xtx4-storage"
+name = "sd-storage"
 version = "0.1.0"
 edition = "2021"
 
@@ -8,5 +8,7 @@ edition = "2021"
 [target.'cfg(target_arch = "riscv32")'.dependencies]
 esp-hal = { version = "1.0.0", features = ["esp32c3", "unstable"] }
 embedded-hal = "1"
+embedded-hal-bus = "0.3"
 embedded-sdmmc = "0.9"
 xtx4-bus = { path = "../xtx4-bus" }
+xtx4-raw-gpio = { path = "../xtx4-raw-gpio" }

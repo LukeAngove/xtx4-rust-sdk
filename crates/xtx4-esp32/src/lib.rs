@@ -60,11 +60,11 @@ pub struct Xtx4PlatformInner<D: xtx4_display::DisplayController, B: ButtonReader
     display: Display<D>,
     buttons: B,
     host: xtx4_host::Host,
-    pub storage: xtx4_storage::Storage,
+    pub storage: sd_storage::Storage,
 }
 
 impl<D: xtx4_display::DisplayController, B: ButtonReader> Xtx4PlatformInner<D, B> {
-    pub fn new_with(display: Display<D>, buttons: B, host: xtx4_host::Host, storage: xtx4_storage::Storage) -> Self {
+    pub fn new_with(display: Display<D>, buttons: B, host: xtx4_host::Host, storage: sd_storage::Storage) -> Self {
         Self { display, buttons, host, storage }
     }
 }
@@ -160,25 +160,33 @@ impl Xtx4PlatformInner<Ssd1677Controller<ssd1677_esp_impl::EspInterface>, xtx4_b
 
         xtx4_bus::init(spi);
 
-        // ── Display (CS=GPIO21) ──────────────────────────────────────
-        let transport = ssd1677_esp_impl::EspInterface::new(ssd1677_esp_impl::EspInterfaceBuilder {
-            cs: peripherals.GPIO21.into(),
-            dc: peripherals.GPIO4.into(),
-            rst: peripherals.GPIO5.into(),
-            busy: peripherals.GPIO6.into(),
-        });
+        // ── Display SPI device (CS=GPIO21) ──────────────────────────
+        use embedded_hal_bus::spi::CriticalSectionDevice;
+        use esp_hal::{
+            delay::Delay,
+            gpio::{Input, InputConfig, Output, OutputConfig, Level, Pull},
+        };
+        let out = OutputConfig::default();
+        let disp_cs = Output::new(peripherals.GPIO21, Level::High, out);
+        let dc     = Output::new(peripherals.GPIO4, Level::High, out);
+        let rst    = Output::new(peripherals.GPIO5, Level::High, out);
+        let busy   = Input::new(peripherals.GPIO6, InputConfig::default().with_pull(Pull::None));
+        let disp_spi = CriticalSectionDevice::new(xtx4_bus::get(), disp_cs, Delay::new()).unwrap();
+        let transport = ssd1677_esp_impl::EspInterface::new(disp_spi, dc, rst, busy);
         let controller = Ssd1677Controller::new(transport, DISPLAY_WIDTH, DISPLAY_HEIGHT);
         let display = Display::new(controller);
 
+        // ── SD card SPI device (CS=GPIO12 via PAC) ──────────────────
+        use xtx4_raw_gpio::RawGpioPin;
+        let sd_spi = CriticalSectionDevice::new(xtx4_bus::get(), RawGpioPin::<12>::new(), Delay::new()).unwrap();
+        let storage = sd_storage::Storage::new(sd_spi);
+
         // ── Buttons ──────────────────────────────────────────────────
-        use esp_hal::gpio::{Input, InputConfig, Pull};
         let power = Input::new(peripherals.GPIO3, InputConfig::default().with_pull(Pull::Up));
         let buttons = xtx4_buttons_adc::ButtonsAdc::new(
             peripherals.ADC1, peripherals.GPIO1, peripherals.GPIO2, power
         );
         let host = xtx4_host::Host::new(peripherals.LPWR, 3);
-
-        let storage = xtx4_storage::Storage::new();
 
         Self::new_with(display, buttons, host, storage)
     }
@@ -200,7 +208,7 @@ impl Xtx4PlatformInner<Ssd1677Controller<ssd1677_pbm_impl::PbmInterface>, xtx4_b
         let buttons = xtx4_buttons_stdin::ButtonsStdin::new();
         let host = xtx4_host::Host::new();
 
-        Self::new_with(display, buttons, host, xtx4_storage::Storage::new())
+        Self::new_with(display, buttons, host, sd_storage::Storage::new())
     }
 }
 
@@ -215,7 +223,7 @@ impl Xtx4PlatformInner<Ssd1677Controller<ssd1677_pbm_impl::PbmInterface>, xtx4_b
         let controller = Ssd1677Controller::new(interface, DISPLAY_WIDTH, DISPLAY_HEIGHT);
         let display = Display::new(controller);
         let host = xtx4_host::Host::new();
-        Self::new_with(display, xtx4_buttons_mock::MockButtons::new(), host, xtx4_storage::Storage::new())
+        Self::new_with(display, xtx4_buttons_mock::MockButtons::new(), host, sd_storage::Storage::new())
     }
 }
 

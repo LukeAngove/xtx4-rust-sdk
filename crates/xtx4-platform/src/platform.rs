@@ -59,7 +59,7 @@ impl XtX4 {
             let display = xtx4_display::Display::new(controller);
             let buttons = xtx4_buttons_minifb::MinifbButtons::new(window);
             let host = xtx4_host::Host::new();
-            xtx4_esp32::Xtx4PlatformInner::new_with(display, buttons, host, xtx4_storage::Storage::new())
+            xtx4_esp32::Xtx4PlatformInner::new_with(display, buttons, host, sd_storage::Storage::new())
         };
 
         let mut input_state_manager = InputStateManager::new();
@@ -169,7 +169,7 @@ impl XtX4 {
     }
 
     /// Access the storage subsystem (SD card or host folder).
-    pub fn storage(&mut self) -> &mut xtx4_storage::Storage {
+    pub fn storage(&mut self) -> &mut sd_storage::Storage {
         &mut self.platform.storage
     }
 }

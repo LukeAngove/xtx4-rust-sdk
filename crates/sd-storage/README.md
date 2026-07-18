@@ -1,4 +1,4 @@
-# xtx4-storage
+# sd-storage
 
 Storage abstraction: SD card on ESP32, host folder on desktop.
 

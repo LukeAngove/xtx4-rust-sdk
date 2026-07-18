@@ -1,0 +1,10 @@
+[package]
+name = "xtx4-raw-gpio"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+
+[target.'cfg(target_arch = "riscv32")'.dependencies]
+esp-hal = { version = "1.0.0", features = ["esp32c3", "unstable"] }
+embedded-hal = "1"

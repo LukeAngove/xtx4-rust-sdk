@@ -8,40 +8,24 @@ use embedded_hal::spi::SpiDevice;
 use embedded_hal_bus::spi::CriticalSectionDevice;
 use esp_hal::{
     delay::Delay,
-    gpio::{Input, Output, AnyPin, InputConfig, OutputConfig, Level},
+    gpio::{Input, Output},
     spi::master::Spi,
 };
 use esp_println::{println, print};
 use ssd1677::DisplayInterface;
 use xtx4_host;
 
+type SpiDev = CriticalSectionDevice<'static, Spi<'static, esp_hal::Blocking>, Output<'static>, Delay>;
+
 pub struct EspInterface {
-    spi: CriticalSectionDevice<'static, Spi<'static, esp_hal::Blocking>, Output<'static>, Delay>,
+    spi: SpiDev,
     dc:  Output<'static>,
     rst: Output<'static>,
     busy: Input<'static>,
 }
 
-pub struct EspInterfaceBuilder {
-    pub cs:   AnyPin<'static>,
-    pub dc:   AnyPin<'static>,
-    pub rst:  AnyPin<'static>,
-    pub busy: AnyPin<'static>,
-}
-
 impl EspInterface {
-    pub fn new(b: EspInterfaceBuilder) -> Self {
-        let out_cfg = OutputConfig::default();
-        let cs  = Output::new(b.cs, Level::High, out_cfg);
-        let dc  = Output::new(b.dc, Level::High, out_cfg);
-        let rst = Output::new(b.rst, Level::High, out_cfg);
-        let delay = Delay::new();
-
-        let busy_cfg = InputConfig::default().with_pull(esp_hal::gpio::Pull::None);
-        let busy = Input::new(b.busy, busy_cfg);
-
-        let spi = CriticalSectionDevice::new(xtx4_bus::get(), cs, delay).unwrap();
-
+    pub fn new(spi: SpiDev, dc: Output<'static>, rst: Output<'static>, busy: Input<'static>) -> Self {
         Self { spi, dc, rst, busy }
     }
 }
