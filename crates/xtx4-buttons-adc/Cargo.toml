@@ -6,6 +6,9 @@ edition = "2021"
 [dependencies]
 xtx4-buttons = { path = "../xtx4-buttons" }
 xtx4-platform-interface = { path = "../xtx4-platform-interface" }
-esp-hal = { version = "1.0.0", features = ["esp32c3", "unstable"] }
 nb = "1"
 xtx4-host = { path = "../xtx4-host" }
+
+[target.'cfg(target_arch = "riscv32")'.dependencies]
+esp-hal = { version = "1.0.0", features = ["esp32c3", "unstable"] }
+critical-section = "1"

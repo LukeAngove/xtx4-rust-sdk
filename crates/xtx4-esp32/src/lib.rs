@@ -139,7 +139,7 @@ impl<D: xtx4_display::DisplayController, B: ButtonReader> PlatformTrait for Xtx4
 // ── ESP32 hardware constructor ──────────────────────────────────────────────
 
 #[cfg(not(target_arch = "x86_64"))]
-impl Xtx4PlatformInner<Ssd1677Controller<ssd1677_esp_impl::EspInterface>, xtx4_buttons_adc::ButtonsAdc> {
+impl Xtx4PlatformInner<Ssd1677Controller<ssd1677_esp_impl::EspInterface>, xtx4_buttons_adc::ButtonsAdcIntr> {
     pub fn new() -> Self {
         use esp_hal::{
             time::Rate,
@@ -183,8 +183,8 @@ impl Xtx4PlatformInner<Ssd1677Controller<ssd1677_esp_impl::EspInterface>, xtx4_b
 
         // ── Buttons ──────────────────────────────────────────────────
         let power = Input::new(peripherals.GPIO3, InputConfig::default().with_pull(Pull::Up));
-        let buttons = xtx4_buttons_adc::ButtonsAdc::new(
-            peripherals.ADC1, peripherals.GPIO1, peripherals.GPIO2, power
+        let buttons = xtx4_buttons_adc::ButtonsAdcIntr::new(
+            peripherals.ADC1, peripherals.GPIO1, peripherals.GPIO2, power, peripherals.SYSTIMER
         );
         let host = xtx4_host::Host::new(peripherals.LPWR, 3);
 
@@ -193,7 +193,7 @@ impl Xtx4PlatformInner<Ssd1677Controller<ssd1677_esp_impl::EspInterface>, xtx4_b
 }
 
 #[cfg(not(target_arch = "x86_64"))]
-pub type Xtx4Platform = Xtx4PlatformInner<Ssd1677Controller<ssd1677_esp_impl::EspInterface>, xtx4_buttons_adc::ButtonsAdc>;
+pub type Xtx4Platform = Xtx4PlatformInner<Ssd1677Controller<ssd1677_esp_impl::EspInterface>, xtx4_buttons_adc::ButtonsAdcIntr>;
 
 // ── Emulated (x86_64) constructor ────────────────────────────────────────────
 

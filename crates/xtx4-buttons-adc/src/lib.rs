@@ -1,92 +1,171 @@
-#![no_std]
+#![cfg_attr(target_arch = "riscv32", no_std)]
 
 // ESP32-C3 ADC button reader.
-// Reads 4 face buttons + 2 side buttons via resistor ladder on two ADC pins,
-// plus power button via digital input.
+//
+// Two types:
+//   ButtonsAdc     – synchronous: reads ADC on every poll, 5ms blocking debounce.
+//   ButtonsAdcIntr – ISR-driven: 10ms SYSTIMER alarm reads ADC in the ISR,
+//                     debounces, and tracks transitions so short presses
+//                     during display updates are not missed.
 
-use esp_hal::analog::adc::{Adc, AdcConfig, Attenuation, AdcPin, AdcChannel, AdcCalBasic, AdcCalScheme, RegisterAccess};
-use esp_hal::gpio::{Input};
-use esp_hal::peripherals::{ADC1, GPIO1, GPIO2};
-use esp_hal::Blocking;
-use xtx4_platform_interface::Buttons;
+// ════════════════════════════════════════════════════════════════════════
+//  RISCV  –  real hardware
+// ════════════════════════════════════════════════════════════════════════
 
-use xtx4_buttons::ButtonReader;
+#[cfg(target_arch = "riscv32")]
+mod polling;
+#[cfg(target_arch = "riscv32")]
+mod intr;
 
-// ADC ranges for pin 1 (BACK, CONFIRM, LEFT, RIGHT)
-// If ADC value is between range[i+1] and range[i], button i is pressed
-const ADC_NO_BUTTON: u16 = 3800;
-const ADC_RANGES_1: [u16; 5] = [ADC_NO_BUTTON, 3100, 2090, 750, 0];
+#[cfg(target_arch = "riscv32")]
+pub use polling::ButtonsAdc;
+#[cfg(target_arch = "riscv32")]
+pub use intr::ButtonsAdcIntr;
 
-// ADC ranges for pin 2 (UP, DOWN)
-const ADC_RANGES_2: [u16; 3] = [ADC_NO_BUTTON, 1120, 0];
+// ════════════════════════════════════════════════════════════════════════
+//  Tests  –  simulated ISR / poll loop, no hardware
+// ════════════════════════════════════════════════════════════════════════
 
-fn read_adc_button<'a, ADC, Pin, Calibration>(adc: &mut Adc<'a, ADC, Blocking>, pin: &mut AdcPin<Pin, ADC, Calibration>, ranges: &[u16]) -> Option<usize>
-where
-    ADC: RegisterAccess + 'a,
-    Pin: AdcChannel,
-    Calibration: AdcCalScheme<ADC>
-{
-    let value: u16 = nb::block!(adc.read_oneshot(pin)).unwrap();
-    for i in 0..ranges.len() - 1 {
-        if ranges[i] >= value && value > ranges[i+1] {
-            return Some(i);
-        }
-    }
-    None
-}
+#[cfg(test)]
+mod tests {
+    use xtx4_platform_interface::Buttons;
 
-pub struct ButtonsAdc {
-    adc: Adc<'static, ADC1<'static>, Blocking>,
-    face_pin: AdcPin<GPIO1<'static>, ADC1<'static>, AdcCalBasic<ADC1<'static>>>,
-    side_pin: AdcPin<GPIO2<'static>, ADC1<'static>, AdcCalBasic<ADC1<'static>>>,
-    power: Input<'static>,
-}
-
-impl ButtonsAdc {
-    pub fn new(adc: ADC1<'static>, face_pin: GPIO1<'static>, side_pin: GPIO2<'static>, power: Input<'static>) -> Self {
-        let mut adc_config = AdcConfig::new();
-        let face_pin = adc_config.enable_pin_with_cal::<_, AdcCalBasic<ADC1<'static>>>(face_pin, Attenuation::_11dB);
-        let side_pin = adc_config.enable_pin_with_cal::<_, AdcCalBasic<ADC1<'static>>>(side_pin, Attenuation::_11dB);
-        let adc = Adc::new(adc, adc_config);
-        Self { adc, face_pin, side_pin, power }
+    /// A software copy of the ISR state machine, used to validate
+    /// behaviour without hardware.
+    struct State {
+        current: u8,
+        pressed_since_poll: u8,
+        released_since_poll: u8,
+        db_count: u8,
+        last_raw: u8,
     }
 
-    fn scan_buttons(&mut self) -> Buttons {
-        let mut state = Buttons::empty();
-
-        if let Some(btn) = read_adc_button(&mut self.adc, &mut self.face_pin, &ADC_RANGES_1) {
-            state |= match btn {
-                0 => Buttons::LEFT_OUTER,
-                1 => Buttons::LEFT_INNER,
-                2 => Buttons::RIGHT_INNER,
-                3 => Buttons::RIGHT_OUTER,
-                _ => Buttons::empty(),
-            };
+    impl State {
+        fn new() -> Self {
+            Self { current: 0, pressed_since_poll: 0, released_since_poll: 0, db_count: 0, last_raw: 0 }
         }
 
-        if let Some(btn) = read_adc_button(&mut self.adc, &mut self.side_pin, &ADC_RANGES_2) {
-            state |= match btn {
-                0 => Buttons::SIDE_TOP,
-                1 => Buttons::SIDE_BOTTOM,
-                _ => Buttons::empty(),
-            };
+        fn isr_tick(&mut self, raw: u8) {
+            if raw == self.last_raw {
+                self.db_count = self.db_count.saturating_add(1);
+                if self.db_count >= 2 {
+                    let old = self.current;
+                    self.current = raw;
+                    self.pressed_since_poll |= raw & !old;
+                    self.released_since_poll |= old & !raw;
+                }
+            } else {
+                self.db_count = 0;
+            }
+            self.last_raw = raw;
         }
 
-        if self.power.is_low() {
-            state |= Buttons::POWER;
+        fn poll(&mut self) -> u8 {
+            let r = self.current | self.pressed_since_poll | self.released_since_poll;
+            self.pressed_since_poll = 0;
+            self.released_since_poll = 0;
+            r
         }
-
-        state
     }
-}
 
-impl ButtonReader for ButtonsAdc {
-    fn button_state(&mut self) -> Buttons {
-        const DEBOUNCE_MS: u32 = 5;
+    #[test]
+    fn steady_idle() {
+        let mut s = State::new();
+        for _ in 0..10 { s.isr_tick(0); }
+        assert_eq!(s.poll(), 0);
+        assert_eq!(s.poll(), 0);
+    }
 
-        let first = self.scan_buttons();
-        xtx4_host::delay_ms(DEBOUNCE_MS);
-        let second = self.scan_buttons();
-        first & second
+    #[test]
+    fn hold_across_polls() {
+        let mut s = State::new();
+        for _ in 0..5 { s.isr_tick(Buttons::LEFT_OUTER.bits()); }
+        assert_eq!(s.poll(), Buttons::LEFT_OUTER.bits());
+        assert_eq!(s.poll(), Buttons::LEFT_OUTER.bits());
+        assert_eq!(s.poll(), Buttons::LEFT_OUTER.bits());
+    }
+
+    #[test]
+    fn tap_between_polls() {
+        let mut s = State::new();
+        for _ in 0..5 { s.isr_tick(Buttons::LEFT_OUTER.bits()); }
+        for _ in 0..5 { s.isr_tick(0); }
+        assert_ne!(s.poll() & Buttons::LEFT_OUTER.bits(), 0);
+        assert_eq!(s.poll(), 0);
+    }
+
+    #[test]
+    fn two_quick_taps_between_polls() {
+        let mut s = State::new();
+        let b = Buttons::LEFT_OUTER.bits();
+        for _ in 0..3 { s.isr_tick(b); }
+        for _ in 0..3 { s.isr_tick(0); }
+        for _ in 0..3 { s.isr_tick(b); }
+        for _ in 0..3 { s.isr_tick(0); }
+        assert_ne!(s.poll() & b, 0);
+        assert_eq!(s.poll(), 0);
+    }
+
+    #[test]
+    fn press_then_release_between_polls() {
+        let mut s = State::new();
+        let b = Buttons::LEFT_OUTER.bits();
+        for _ in 0..3 { s.isr_tick(b); }
+        for _ in 0..3 { s.isr_tick(0); }
+        assert!(s.poll() & b != 0);
+        assert_eq!(s.poll(), 0);
+    }
+
+    #[test]
+    fn power_button_combined() {
+        let mut s = State::new();
+        let face = Buttons::RIGHT_INNER.bits();
+        let pwr  = Buttons::POWER.bits();
+        for _ in 0..3 { s.isr_tick(face | pwr); }
+        assert!(s.poll() & face != 0);
+    }
+
+    #[test]
+    fn debounce_noise_rejection() {
+        let mut s = State::new();
+        let b = Buttons::LEFT_OUTER.bits();
+        for i in 0..20 {
+            s.isr_tick(if i % 2 == 0 { b } else { 0 });
+        }
+        assert_eq!(s.poll(), 0);
+    }
+
+    #[test]
+    fn release_latch_detected() {
+        // Button held, then released mid-busy-period.
+        let mut s = State::new();
+        let b = Buttons::LEFT_OUTER.bits();
+
+        // Hold for several ticks.
+        for _ in 0..5 { s.isr_tick(b); }
+        // Poll: pressed event visible.
+        assert!(s.poll() & b != 0);
+        // Now release.
+        for _ in 0..5 { s.isr_tick(0); }
+        // Poll: release event visible.
+        assert!(s.poll() & b != 0);
+        // Next poll: nothing.
+        assert_eq!(s.poll(), 0);
+    }
+
+    #[test]
+    fn press_and_release_same_frame() {
+        // Tap entirely between polls.
+        let mut s = State::new();
+        let b = Buttons::LEFT_OUTER.bits();
+
+        for _ in 0..3 { s.isr_tick(b); }
+        for _ in 0..3 { s.isr_tick(0); }
+
+        // First poll: both press and release in one frame.
+        let r = s.poll();
+        assert!(r & b != 0);
+        // Next poll: nothing.
+        assert_eq!(s.poll(), 0);
     }
 }
