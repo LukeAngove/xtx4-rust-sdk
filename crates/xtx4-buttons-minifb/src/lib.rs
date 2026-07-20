@@ -1,24 +1,23 @@
 // Button reader via minifb window key state.
 
-use std::cell::RefCell;
-use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 use minifb::{Key, Window};
 use xtx4_platform_interface::Buttons;
 use xtx4_buttons::ButtonReader;
 
 pub struct MinifbButtons {
-    window: Rc<RefCell<Window>>,
+    window: Arc<Mutex<Window>>,
 }
 
 impl MinifbButtons {
-    pub fn new(window: Rc<RefCell<Window>>) -> Self {
+    pub fn new(window: Arc<Mutex<Window>>) -> Self {
         Self { window }
     }
 }
 
 impl ButtonReader for MinifbButtons {
     fn button_state(&mut self) -> Buttons {
-        let mut w = self.window.borrow_mut();
+        let mut w = self.window.lock().unwrap();
         w.update();
 
         let mut state = Buttons::empty();
@@ -32,3 +31,8 @@ impl ButtonReader for MinifbButtons {
         state
     }
 }
+
+// SAFETY: minifb calls XInitThreads(), and we protect Window behind
+// a Mutex.  The raw X11 pointers are safe to use from any thread
+// when access is serialised.
+unsafe impl Send for MinifbButtons {}

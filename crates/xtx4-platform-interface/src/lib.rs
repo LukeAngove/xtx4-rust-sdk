@@ -30,7 +30,7 @@ pub struct Rectangle {
 }
 
 bitflags::bitflags! {
-    #[derive(Clone, Copy, Debug)]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     pub struct Buttons: u8 {
         const POWER       = 1 << 0;
         const LEFT_OUTER  = 1 << 1;

@@ -11,5 +11,5 @@ members = [
 ]
 # Exclude from platform specific targets from build; only build when depended on.
 # Stops build errors on incompatible platforms
-exclude = ["crates/xtx4-desktop", "crates/xtx4-esp32", "crates/xtx4-bus", "crates/ssd1677-esp", "crates/ssd1677-minifb", "crates/ssd1677-pbm", "crates/xtx4-buttons-adc", "crates/xtx4-buttons-stdin", "crates/xtx4-buttons-minifb", "crates/xtx4-buttons-mock", "crates/xtx4-host-esp", "crates/xtx4-host-emulated", "crates/xtx4-raw-gpio"]
+exclude = ["crates/xtx4-desktop", "crates/xtx4-esp32", "crates/xtx4-bus", "crates/ssd1677-esp", "crates/ssd1677-minifb", "crates/ssd1677-pbm", "crates/xtx4-buttons-adc", "crates/xtx4-buttons-stdin", "crates/xtx4-buttons-minifb", "crates/xtx4-buttons-mock", "crates/xtx4-buttons-background", "crates/xtx4-host-esp", "crates/xtx4-host-emulated", "crates/xtx4-raw-gpio"]
 resolver = "2"

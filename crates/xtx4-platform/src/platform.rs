@@ -27,7 +27,7 @@ pub struct XtX4 {
     #[cfg(feature = "minifb")]
     platform: xtx4_esp32::Xtx4PlatformInner<
         ssd1677::Ssd1677Controller<ssd1677_minifb::MinifbInterface>,
-        xtx4_buttons_minifb::MinifbButtons,
+        xtx4_buttons_background::BackgroundButtons<xtx4_buttons_minifb::MinifbButtons>,
     >,
 
     input_state_manager: InputStateManager,
@@ -50,14 +50,16 @@ impl XtX4 {
             use xtx4_platform_interface::{FRAME_WIDTH, FRAME_HEIGHT};
             let display_w = FRAME_HEIGHT as u16;
             let display_h = FRAME_WIDTH as u16;
-            let window = std::rc::Rc::new(std::cell::RefCell::new(
+            let window = std::sync::Arc::new(std::sync::Mutex::new(
                 minifb::Window::new("Xteink X4", 480, 800, minifb::WindowOptions::default()).unwrap()
             ));
             let hw = ssd1677_minifb::MinifbHardware::new();
             let interface = ssd1677_minifb::MinifbInterface::new(hw, window.clone());
             let controller = ssd1677::Ssd1677Controller::new(interface, display_w, display_h);
             let display = xtx4_display::Display::new(controller);
-            let buttons = xtx4_buttons_minifb::MinifbButtons::new(window);
+            let buttons = xtx4_buttons_background::BackgroundButtons::new(
+                xtx4_buttons_minifb::MinifbButtons::new(window)
+            );
             let host = xtx4_host::Host::new();
             xtx4_esp32::Xtx4PlatformInner::new_with(display, buttons, host, sd_storage::Storage::new())
         };

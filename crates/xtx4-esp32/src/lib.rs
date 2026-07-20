@@ -198,14 +198,14 @@ pub type Xtx4Platform = Xtx4PlatformInner<Ssd1677Controller<ssd1677_esp_impl::Es
 // ── Emulated (x86_64) constructor ────────────────────────────────────────────
 
 #[cfg(target_arch = "x86_64")]
-impl Xtx4PlatformInner<Ssd1677Controller<ssd1677_pbm_impl::PbmInterface>, xtx4_buttons_stdin::ButtonsStdin> {
+impl Xtx4PlatformInner<Ssd1677Controller<ssd1677_pbm_impl::PbmInterface>, xtx4_buttons_background::BackgroundButtons<xtx4_buttons_stdin::ButtonsStdin>> {
     pub fn new() -> Self {
 
         let hw = ssd1677_pbm_impl::PbmHardware::new();
         let transport = ssd1677_pbm_impl::PbmInterface::new(hw);
         let controller = Ssd1677Controller::new(transport, DISPLAY_WIDTH, DISPLAY_HEIGHT);
         let display = Display::new(controller);
-        let buttons = xtx4_buttons_stdin::ButtonsStdin::new();
+        let buttons = xtx4_buttons_background::BackgroundButtons::new(xtx4_buttons_stdin::ButtonsStdin::new());
         let host = xtx4_host::Host::new();
 
         Self::new_with(display, buttons, host, sd_storage::Storage::new())
@@ -213,7 +213,7 @@ impl Xtx4PlatformInner<Ssd1677Controller<ssd1677_pbm_impl::PbmInterface>, xtx4_b
 }
 
 #[cfg(target_arch = "x86_64")]
-pub type Xtx4Platform = Xtx4PlatformInner<Ssd1677Controller<ssd1677_pbm_impl::PbmInterface>, xtx4_buttons_stdin::ButtonsStdin>;
+pub type Xtx4Platform = Xtx4PlatformInner<Ssd1677Controller<ssd1677_pbm_impl::PbmInterface>, xtx4_buttons_background::BackgroundButtons<xtx4_buttons_stdin::ButtonsStdin>>;
 
 #[cfg(target_arch = "x86_64")]
 impl Xtx4PlatformInner<Ssd1677Controller<ssd1677_pbm_impl::PbmInterface>, xtx4_buttons_mock::MockButtons> {

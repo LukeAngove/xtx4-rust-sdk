@@ -16,6 +16,7 @@ bitflags = "2"
 ssd1677-pbm = { path = "../ssd1677-pbm" }
 xtx4-buttons-stdin = { path = "../xtx4-buttons-stdin" }
 xtx4-buttons-mock = { path = "../xtx4-buttons-mock" }
+xtx4-buttons-background = { path = "../xtx4-buttons-background" }
 
 [target.'cfg(target_arch = "riscv32")'.dependencies]
 ssd1677-esp = { path = "../ssd1677-esp" }

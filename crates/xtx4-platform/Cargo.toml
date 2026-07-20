@@ -7,7 +7,7 @@ edition = "2021"
 desktop = ["dep:xtx4-desktop"]
 esp32 = ["dep:xtx4-esp32"]
 mock = ["dep:xtx4-esp32", "dep:ssd1677-pbm", "dep:xtx4-buttons-mock"]
-minifb = ["dep:xtx4-esp32", "dep:minifb", "dep:ssd1677-minifb", "dep:xtx4-buttons-minifb"]
+minifb = ["dep:xtx4-esp32", "dep:minifb", "dep:ssd1677-minifb", "dep:xtx4-buttons-minifb", "dep:xtx4-buttons-background"]
 
 [dependencies]
 xtx4-platform-interface = { path = "../xtx4-platform-interface" }
@@ -23,4 +23,5 @@ minifb = { version = "0.27", optional = true, features = ["x11"] }
 ssd1677-minifb = { path = "../ssd1677-minifb", optional = true }
 xtx4-buttons-mock = { path = "../xtx4-buttons-mock", optional = true }
 xtx4-buttons-minifb = { path = "../xtx4-buttons-minifb", optional = true }
+xtx4-buttons-background = { path = "../xtx4-buttons-background", optional = true }
 embedded-graphics = "0.8"

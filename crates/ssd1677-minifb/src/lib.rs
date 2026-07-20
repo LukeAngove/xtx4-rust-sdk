@@ -3,8 +3,8 @@
 // renders the result to a minifb window with ghosting and flash effects.
 
 use core::cell::Cell;
-use std::cell::RefCell;
-use std::rc::Rc;
+use std::sync::Mutex;
+use std::sync::Arc;
 use minifb::Window;
 use ssd1677::DisplayInterface;
 
@@ -71,7 +71,7 @@ impl MinifbHardware {
 
 pub struct MinifbInterface {
     hw: MinifbHardware,
-    window: Rc<RefCell<Window>>,
+    window: Arc<Mutex<Window>>,
     ghost_buf_p: [u8; PORTRAIT_W * PORTRAIT_H],
     last_cmd: u8,
     cmd_arg_count: u8,
@@ -89,7 +89,7 @@ pub struct MinifbInterface {
 }
 
 impl MinifbInterface {
-    pub fn new(hw: MinifbHardware, window: Rc<RefCell<Window>>) -> Self {
+    pub fn new(hw: MinifbHardware, window: Arc<Mutex<Window>>) -> Self {
         Self {
             hw,
             window,
@@ -232,7 +232,7 @@ impl MinifbInterface {
 
     fn sleep_and_render(&mut self, ms: u64, pixels_p: &[u32]) {
         std::thread::sleep(std::time::Duration::from_millis(ms));
-        self.window.borrow_mut().update_with_buffer(pixels_p, PORTRAIT_W, PORTRAIT_H).unwrap();
+        self.window.lock().unwrap().update_with_buffer(pixels_p, PORTRAIT_W, PORTRAIT_H).unwrap();
     }
 
     fn u8_to_pixel(v: u8) -> u32 {
@@ -248,7 +248,7 @@ impl MinifbInterface {
         for (i, &v) in self.ghost_buf_p.iter().enumerate() {
             pixels_p[i] = Self::u8_to_pixel(v);
         }
-        self.window.borrow_mut().update_with_buffer(&pixels_p, PORTRAIT_W, PORTRAIT_H).unwrap();
+        self.window.lock().unwrap().update_with_buffer(&pixels_p, PORTRAIT_W, PORTRAIT_H).unwrap();
     }
 
     fn store_prev(&mut self) {
