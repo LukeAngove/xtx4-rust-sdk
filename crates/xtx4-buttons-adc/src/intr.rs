@@ -144,7 +144,7 @@ impl ButtonsAdcIntr {
         critical_section::with(|cs| {
             let mut timer_ref = ISR_TIMER.borrow_ref_mut(cs);
             let timer = unsafe { timer_ref.assume_init_mut() };
-            interrupt::enable(Interrupt::SYSTIMER_TARGET0, Priority::min()).unwrap();
+            interrupt::enable(Interrupt::SYSTIMER_TARGET0, Priority::min());
             timer
                 .start(esp_hal::time::Duration::from_millis(10))
                 .expect("timer start");

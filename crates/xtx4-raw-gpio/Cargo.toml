@@ -6,5 +6,5 @@ edition = "2021"
 [dependencies]
 
 [target.'cfg(target_arch = "riscv32")'.dependencies]
-esp-hal = { version = "1.0.0", features = ["esp32c3", "unstable"] }
+esp-hal = { version = "1.1.1", features = ["esp32c3", "unstable"] }
 embedded-hal = "1"
